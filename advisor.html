@@ -34,7 +34,7 @@
       <div class="card"><h2>The room now and the target</h2><div id="kpis"></div><div id="chart"></div><div id="notes"></div></div>
       <div class="card"><h2>Recommendations</h2><div id="advice"></div></div>
       <div class="card"><h2>Solutions, best first</h2>
-        <p class="derived">Each solution uses one or two treatments. The advisor finds the area that gives the reverberation time nearest to the target in all bands from 125 Hz to 4 kHz. Click a row to show it on the chart.</p>
+        <p class="derived">Each solution uses one or two treatments. The advisor finds the area that gives the reverberation time nearest to the target in the bands that have a requirement. Solutions within your maximum area come first. Click a row to show it on the chart.</p>
         <div id="options"></div>
         <div class="btn-row"><button class="btn primary" id="pj-add" type="button">Add the selected solution to the project</button></div>
         <div class="derived" id="pjMsg" role="status"></div>
@@ -63,15 +63,17 @@
       <li>It calculates the absorption area for the target: A_target = 55.26 V / (c T_target).</li>
       <li>The difference is the absorption to add in each octave band.</li>
       <li>For each treatment it uses the diffuse-field absorption coefficient from the calculators on this site (or your data sheet values).</li>
-      <li>It finds the area of one treatment, or of two treatments together, that gives the reverberation time nearest to the target in all bands (least squares on the relative error, areas not negative).</li>
-      <li>It sorts the solutions by the largest deviation from the target.</li>
+      <li>It finds the area of one treatment, or of two treatments together, that gives the reverberation time nearest to the target (least squares on the relative error, divided by the tolerance of each band; bands without a requirement are not used; areas not negative).</li>
+      <li>It sorts the solutions: first the solutions within your maximum area, then by the number of bands in the target range, then by the largest deviation.</li>
     </ol>
+    <p>If the requirement is a maximum (ANSI S12.60, DIN 18041 group B), the advisor aims 10 % below the maximum as a design margin.</p>
     <p>The panels cover hard surfaces. The advisor assumes that the absorption of the covered surface is small and does not subtract it.</p>
 
     <h2>Limits</h2>
     <ul>
       <li>The Sabine formula assumes a diffuse sound field. In small rooms, below the Schroeder frequency, room modes are more important than the reverberation time.</li>
-      <li>Shop products are shown as product types with assumed dimensions. The real product can be different. Use the data sheet of the product ("My products") for a reliable result.</li>
+      <li>Shop products use published data: measured values where they exist, or a published absorption class. A class gives only one number (αw). The advisor then uses the ISO 11654 reference curve at that αw as an example spectrum, and 0 at 125 Hz. The real product can be different. Type the data sheet values in "My products" for a reliable result.</li>
+      <li>Furniture is not counted. For values, see the furniture list.</li>
       <li>The advisor does not know about prices or offers. Type a price per m² if you want to compare costs.</li>
       <li>The position of the treatment is important. The advisor gives general rules for the position. It does not calculate it.</li>
       <li>After you install the treatment, measure the room again.</li>
@@ -174,17 +176,20 @@ function compute(v, ok) {
     Anow = OCTS.map((o) => (K * V) / (a.c * measured[o]));
   } else Anow = PRESETS[v.now].alpha.map((x) => x * S);
   const Tnow = Anow.map((A) => (K * V) / (a.c * A));
-  const tg = AC.targetRT(v.use, V);
+  const tg = AC.targetRT(v.use, V, { h: v.H, c: a.c });
   const Ttar = OCTS.map((o) => tg.T * tg.shape[o]);
   const Atar = Ttar.map((T) => (K * V) / (a.c * T));
   const dA = Atar.map((A, i) => A - Anow[i]);
-  const w = Atar.map((A) => 1 / (A * A));
+  // Weight: relative error divided by the allowed relative deviation; bands without a requirement get 0.
+  const w = Atar.map((A, b) => (tg.halfWidth[OCTS[b]] ? 1 / Math.pow(A * tg.halfWidth[OCTS[b]], 2) : 0));
+  const req = OCTS.map((o) => !!tg.tol[o]);
 
   // Candidate treatments
   const cands = [];
   const ck = String(v.temp);
   if (alphaCache.key !== ck) { alphaCache.key = ck; alphaCache.map = {}; }
   for (const t of TREAT.CATALOG) {
+    if (t.kind !== 'model') { cands.push({ id: t.id, name: t.name, alpha: t.alpha, src: t.kind, t }); continue; }
     if (!alphaCache.map[t.id]) alphaCache.map[t.id] = TREAT.octaveAlpha(t.cons(), a);
     cands.push({ id: t.id, name: t.name, alpha: alphaCache.map[t.id], src: 'model', t });
   }
@@ -196,18 +201,19 @@ function compute(v, ok) {
     const fit = AC.fitTreatmentAreas(dA, list.map((c) => c.alpha), w);
     const Aafter = Anow.map((A, b) => A + list.reduce((s, c, j) => s + fit.areas[j] * c.alpha[b], 0));
     const Tafter = Aafter.map((A) => (K * V) / (a.c * A));
-    const dev = Tafter.map((T, b) => T / Ttar[b] - 1);
-    const inTol = OCTS.map((o, b) => Tafter[b] >= tg.T * tg.tol[o][0] - 1e-9 && Tafter[b] <= tg.T * tg.tol[o][1] + 1e-9);
+    const dev = Tafter.map((T, b) => (req[b] ? T / Ttar[b] - 1 : 0));
+    const inTol = OCTS.map((o, b) => !tg.tol[o] || (Tafter[b] >= tg.T * tg.tol[o][0] - 1e-9 && Tafter[b] <= tg.T * tg.tol[o][1] + 1e-9));
     const total = fit.areas.reduce((s, x) => s + x, 0);
     const cost = list.every((c) => c.price > 0) ? list.reduce((s, c, j) => s + c.price * fit.areas[j], 0) : null;
-    return { list, areas: fit.areas, Tafter, maxDev: Math.max(...dev.map(Math.abs)), inTol: inTol.filter(Boolean).length, total, cover: total / wallCeil, cost };
+    return { list, areas: fit.areas, Tafter, maxDev: Math.max(...dev.map(Math.abs)), inTol: inTol.filter((x, b) => x && req[b]).length, nReq: req.filter(Boolean).length, total, cover: total / wallCeil, fits: total / wallCeil <= v.cover / 100 + 1e-9, cost };
   };
   for (let i = 0; i < cands.length; i++) {
     sols.push(evalSol([cands[i]]));
     for (let j = i + 1; j < cands.length; j++) sols.push(evalSol([cands[i], cands[j]]));
   }
   const useful = sols.filter((s) => s.areas.every((x) => x > 0.05));
-  useful.sort((p, q) => (q.inTol - p.inTol) || (p.maxDev - q.maxDev) || (p.total - q.total));
+  const rank = (p, q) => (q.fits - p.fits) || (q.inTol - p.inTol) || (p.maxDev - q.maxDev) || (p.total - q.total);
+  useful.sort(rank);
   // Remove pairs that are not better than their best single member
   const top = [];
   for (const s of useful) {
@@ -215,12 +221,7 @@ function compute(v, ok) {
     top.push(s);
   }
   // Best solution that contains each treatment (so that every product type is shown)
-  const rank = (p, q) => (q.inTol - p.inTol) || (p.maxDev - q.maxDev) || (p.total - q.total);
-  const perTreatment = cands.map((c) => {
-    const withIt = useful.filter((s) => s.list.includes(c));
-    withIt.sort(rank);
-    return { c, best: withIt[0] || null };
-  });
+  const perTreatment = cands.map((c) => ({ c, best: useful.find((s) => s.list.length === 1 && s.list[0] === c) || null }));
   state = { v, a, V, S, wallCeil, Tnow, Ttar, tg, dA, top, cands, Anow, perTreatment };
   if (selected >= top.length) selected = 0;
 
@@ -228,7 +229,7 @@ function compute(v, ok) {
   UI.kpis($('kpis'), [
     { label: 'Volume', value: UI.fmt(V, 1) + ' m³', sub: `walls + ceiling ${UI.fmt(wallCeil, 1)} m²` },
     { label: 'RT60 now (500–1k)', value: UI.fmt(mid(Tnow), 2) + ' s', sub: v.now === 'measured' ? 'measured' : 'from an assumption' },
-    { label: 'Target RT60', value: UI.fmt(tg.T, 2) + ' s', sub: tg.source },
+    { label: tg.maxOnly ? 'Maximum RT60' : 'Target RT60', value: UI.fmt(tg.T, 2) + ' s', sub: tg.source },
     { label: 'Absorption to add (500–1k)', value: UI.fmt(Math.max(0, mid(dA)), 1) + ' m²', sub: 'equivalent absorption area' },
   ]);
   renderChart();
@@ -243,7 +244,12 @@ function compute(v, ok) {
   UI.notes($('notes'), n);
 
   // Catalog table
-  UI.table($('catalog'), ['Treatment', ...OCTS.map((o) => String(o)), 'Source'], cands.map((c) => [c.name, ...c.alpha.map((x) => UI.fmt(x)), c.src === 'model' ? 'calculated (diffuse)' : c.src]));
+  const srcLabel = (c) => c.src === 'model' ? 'Calculated (diffuse field). ' + c.t.assumptions.join('; ') + '.'
+    : c.src === 'measured' ? 'Measured: ' + c.t.source + '. ' + c.t.assumptions.join(' ')
+    : c.src === 'class' ? 'From published αw: ' + c.t.source + '. ' + c.t.assumptions.join('; ') + '.'
+    : c.src === 'data sheet' ? 'Your data sheet values' : 'Your calculated panel';
+  UI.table($('catalog'), ['Treatment', ...OCTS.map((o) => String(o)), 'Source and assumptions'], cands.map((c) => [c.name, ...c.alpha.map((x) => UI.fmt(x)), srcLabel(c)]));
+  $('catalog').querySelectorAll('td:last-child').forEach((td) => { td.style.whiteSpace = 'normal'; td.style.textAlign = 'left'; td.style.minWidth = '16rem'; });
 }
 
 function renderChart() {
@@ -251,12 +257,12 @@ function renderChart() {
   const series = [
     { name: 'RT60 now', points: OCTS.map((o, b) => [o, s.Tnow[b]]), markers: true },
     { name: 'Target', points: OCTS.map((o, b) => [o, s.Ttar[b]]), dash: true },
-    { name: 'Upper limit', points: OCTS.map((o, b) => [o, s.tg.T * s.tg.tol[o][1]]), dash: true, color: 'var(--muted)' },
-    { name: 'Lower limit', points: OCTS.map((o, b) => [o, s.tg.T * s.tg.tol[o][0]]), dash: true, color: 'var(--muted)' },
+    { name: s.tg.maxOnly ? 'Maximum' : 'Upper limit', points: OCTS.map((o) => [o, s.tg.tol[o] ? s.tg.T * s.tg.tol[o][1] : NaN]), dash: true, color: 'var(--muted)' },
+    ...(s.tg.maxOnly ? [] : [{ name: 'Lower limit', points: OCTS.map((o) => [o, s.tg.tol[o] ? s.tg.T * s.tg.tol[o][0] : NaN]), dash: true, color: 'var(--muted)' }]),
   ];
   const sel = s.top[selected];
   if (sel) series.push({ name: 'With solution ' + (selected + 1), points: OCTS.map((o, b) => [o, sel.Tafter[b]]), markers: true, color: 'var(--series-2)' });
-  const ymax = Math.max(0.4, ...s.Tnow, ...s.Ttar.map((x, b) => s.tg.T * s.tg.tol[OCTS[b]][1]));
+  const ymax = Math.max(0.4, ...s.Tnow, ...OCTS.map((o) => (s.tg.tol[o] ? s.tg.T * s.tg.tol[o][1] : 0)));
   const step = ymax > 4 ? 1 : ymax > 2 ? 0.5 : ymax > 1 ? 0.25 : 0.1;
   const top = Math.ceil((ymax * 1.05) / step) * step;
   const ticks = []; for (let y = 0; y <= top + 1e-9; y += step) ticks.push(+y.toFixed(2));
@@ -276,8 +282,8 @@ function renderOptions() {
     const tr = UI.el('tr', { style: 'cursor:pointer' + (i === selected ? ';background:var(--accent-soft)' : ''), tabindex: '0',
       onclick: () => { selected = i; renderChart(); renderOptions(); }, onkeydown: (e) => { if (e.key === 'Enter') { selected = i; renderChart(); renderOptions(); } } },
       UI.el('th', { scope: 'row' }, String(i + 1)), UI.el('td', { style: 'text-align:left;white-space:normal' }, desc),
-      UI.el('td', {}, UI.fmt(sol.cover * 100, 0) + ' %'),
-      UI.el('td', {}, `${sol.inTol} / 6`),
+      UI.el('td', {}, UI.fmt(sol.cover * 100, 0) + ' %' + (sol.fits ? '' : ' (too much)')),
+      UI.el('td', {}, `${sol.inTol} / ${sol.nReq}`),
       ...sol.Tafter.map((T) => UI.el('td', {}, UI.fmt(T, 2))));
     tb.append(tr);
   });
@@ -289,19 +295,16 @@ function renderOptions() {
     const g = pt.c.t ? pt.c.t.group : 'My products';
     (groups[g] = groups[g] || []).push(pt);
   }
-  box.append(UI.el('h3', {}, 'Best solution with each treatment'));
-  box.append(UI.el('p', { class: 'derived' }, 'Use this table to compare a product type with the best solutions above.'));
+  box.append(UI.el('h3', {}, 'Each treatment alone'));
+  box.append(UI.el('p', { class: 'derived' }, 'The area of each treatment that gives the best result when it is used alone. Many treatments need a bass absorber as well; see the solutions above.'));
   for (const [g, list] of Object.entries(groups)) {
     const rows = list.map((pt) => {
       const b = pt.best;
-      if (!b) return [pt.c.name, 'Not useful for this room', '–', '–', '–'];
-      const k = b.list.indexOf(pt.c);
-      const other = b.list.length > 1 ? b.list[1 - k] : null;
-      const desc = `${UI.fmt(b.areas[k], 1)} m² of this` + (other ? ` + ${UI.fmt(b.areas[1 - k], 1)} m² of ${other.name}` : ' (alone)');
-      return [pt.c.name, desc, UI.fmt(b.cover * 100, 0) + ' %', `${b.inTol} / 6`, UI.fmt((b.Tafter[2] + b.Tafter[3]) / 2, 2) + ' s'];
+      if (!b) return [pt.c.name, 'Does not help in the bands that need absorption', '–', '–', '–'];
+      return [pt.c.name, `${UI.fmt(b.areas[0], 1)} m²`, UI.fmt(b.cover * 100, 0) + ' %' + (b.fits ? '' : ' (too much)'), `${b.inTol} / ${b.nReq}`, UI.fmt((b.Tafter[2] + b.Tafter[3]) / 2, 2) + ' s'];
     });
     const tb = UI.el('div');
-    UI.table(tb, [g, 'Best solution', 'Coverage', 'Bands in range', 'RT 500–1k'], rows);
+    UI.table(tb, [g, 'Area needed (alone)', 'Coverage', 'Bands in range', 'RT 500–1k'], rows);
     tb.querySelectorAll('td').forEach((td) => { td.style.whiteSpace = 'normal'; });
     box.append(tb);
   }
@@ -315,11 +318,11 @@ function renderAdvice() {
   const list = [];
   const ratio = s.Tnow.map((T) => T / s.tg.T);
   const midR = (ratio[2] + ratio[3]) / 2;
-  if (midR > s.tg.tol[500][1]) list.push(`The room is too reverberant. At 500–1000 Hz the RT60 is ${UI.fmt(midR, 1)} × the target. Add approximately ${UI.fmt(Math.max(0, (s.dA[2] + s.dA[3]) / 2), 1)} m² of absorption area.`);
-  else if (midR < s.tg.tol[500][0]) list.push('The room is already less reverberant than the target. Do not add more absorption. Use diffusion (bookshelves, diffusers) to break up reflections.');
+  if (midR > s.tg.tol[500][1] + 1e-9) list.push(`The room is too reverberant. At 500–1000 Hz the RT60 is ${UI.fmt(midR, 1)} × the target. Add approximately ${UI.fmt(Math.max(0, (s.dA[2] + s.dA[3]) / 2), 1)} m² of absorption area.`);
+  else if (!s.tg.maxOnly && midR < s.tg.tol[500][0]) list.push('The room is already less reverberant than the target. Do not add more absorption. Use diffusion (bookshelves, diffusers) to break up reflections.');
   else list.push('The RT60 at middle frequencies is in the target range. Treat only for specific problems (echoes, reflections, bass).');
-  if (ratio[0] > s.tg.tol[125][1] && ratio[0] > midR * 1.15) list.push('The bass (125 Hz) is too long compared to the middle frequencies. Include bass absorbers: membrane panels, deep porous absorbers with an air gap, or absorbers in the corners. Thin panels and felt do not absorb bass.');
-  if (ratio[5] < s.tg.tol[4000][0]) list.push('The high frequencies are already short. Avoid thin felt and thin fabric panels: they absorb mostly high frequencies and make the room sound dull.');
+  if ((s.tg.tol[125] ? ratio[0] > s.tg.tol[125][1] : ratio[0] > 1.2) && ratio[0] > midR * 1.15) list.push('The bass (125 Hz) is too long compared to the middle frequencies. Include bass absorbers: membrane panels, deep porous absorbers with an air gap, or absorbers in the corners. Thin panels and felt do not absorb bass.');
+  if (s.tg.tol[4000] && ratio[5] < s.tg.tol[4000][0]) list.push('The high frequencies are already short. Avoid thin felt and thin fabric panels: they absorb mostly high frequencies and make the room sound dull.');
   for (const r of u.advice) list.push(r);
   list.push('Do not cover only one wall. Spread the treatment over at least two surfaces that face different directions.');
   list.push('If two hard walls are parallel, treat at least one of them to stop flutter echo.');

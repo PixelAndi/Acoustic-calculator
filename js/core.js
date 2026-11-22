@@ -904,14 +904,24 @@
 
   /* Target reverberation times ------------------------------------------ */
   const OCT6 = [125, 250, 500, 1000, 2000, 4000];
-  // DIN 18041:2016 group A tolerance range (ratio T / T_soll) per octave band.
+  // DIN 18041:2016 group A1–A4 tolerance range (ratio T / T_soll) per octave band.
   const DIN_TOL = { 125: [0.65, 1.45], 250: [0.8, 1.2], 500: [0.8, 1.2], 1000: [0.8, 1.2], 2000: [0.8, 1.2], 4000: [0.65, 1.2] };
-  const DIN_TOL_SPEECH = { 125: [0.65, 1.2], 250: [0.8, 1.2], 500: [0.8, 1.2], 1000: [0.8, 1.2], 2000: [0.8, 1.2], 4000: [0.65, 1.2] };
+  // DIN 18041 A5 (sport): ±20 % from 250 to 2000 Hz; no requirement at 125 and 4000 Hz.
+  const DIN_TOL_A5 = { 125: null, 250: [0.8, 1.2], 500: [0.8, 1.2], 1000: [0.8, 1.2], 2000: [0.8, 1.2], 4000: null };
+  // A maximum only, from 250 (or 500) to 2000 Hz.
+  const MAX_ONLY = (from) => Object.fromEntries(OCT6.map((o) => [o, o >= from && o <= 2000 ? [0, 1] : null]));
   const flat = (lo, hi) => Object.fromEntries(OCT6.map((o) => [o, [lo, hi]]));
   const lg = Math.log10;
+  const DIN_OCCUPIED = 'DIN 18041 gives T_soll for the room in use (80 % of the places occupied). People add absorption, so the empty room can have a longer RT60.';
+  // DIN 18041 group B: minimum A/V (m²/m³) from 250 to 2000 Hz; h = clear room height (m).
+  const DIN_B = {
+    B3: (h) => (h <= 2.5 ? 0.2 : 1 / (3.13 + 4.69 * lg(h))),
+    B4: (h) => (h <= 2.5 ? 0.25 : 1 / (2.13 + 4.69 * lg(h))),
+    B5: (h) => (h <= 2.5 ? 0.3 : 1 / (1.47 + 4.69 * lg(h))),
+  };
 
   /**
-   * Room uses with their target. din: DIN 18041:2016 group A formula T_soll(V).
+   * Room uses with their target. din: DIN 18041:2016 group A formula T_soll(V) (vmax exclusive).
    * advice: placement rules (ASD-STE100 style).
    */
   const ROOM_USES = [
@@ -921,51 +931,95 @@
     { id: 'video', label: 'Video calls, podcast or voice recording', kind: 'guide', T: 0.3, tol: flat(0.7, 1.3),
       note: 'No standard gives a target for small voice rooms. The advisor uses 0.3 s as a guide value.',
       advice: ['Put absorbers on the wall behind you, on the wall in front of you and on the side walls at mouth height.', 'Put an absorber or a rug where the sound from your mouth reflects from the desk or floor.'] },
-    { id: 'studio', label: 'Studio control room or critical listening', kind: 'bs1116',
+    { id: 'studio', label: 'Studio control room or critical listening (ITU-R BS.1116)', kind: 'bs1116',
       advice: ['Put absorbers at the first reflection points on the side walls and the ceiling between the loudspeakers and the listener.', 'Put bass absorbers in the corners, mostly behind the loudspeakers.', 'Use diffusion or thick absorbers on the rear wall.', 'Make the room symmetric from left to right.'] },
     { id: 'cinema', label: 'Home cinema', kind: 'bs1116',
       note: 'No single standard gives a target for home cinemas. The advisor uses the listening-room value of ITU-R BS.1116 as a guide.',
       advice: ['Put absorbers at the first reflection points on the side walls.', 'Put bass absorbers in the corners.', 'Treat the wall behind the seats with absorbers or diffusers.'] },
     { id: 'music', label: 'Music practice or rehearsal room (DIN 18041 A1)', kind: 'din', f: (V) => 0.45 * lg(V) + 0.07, vmin: 30, vmax: 1000, tol: DIN_TOL, src: 'DIN 18041 A1',
       advice: ['Use a mix of absorbers and diffusers. Too much absorption makes music sound dull.', 'Include bass absorbers. Thin panels do not control bass.'] },
-    { id: 'lecture', label: 'Lecture or presentation room (DIN 18041 A2)', kind: 'din', f: (V) => 0.37 * lg(V) - 0.14, vmin: 50, vmax: 5000, tol: DIN_TOL_SPEECH, src: 'DIN 18041 A2',
+    { id: 'lecture', label: 'Lecture or presentation room (DIN 18041 A2)', kind: 'din', f: (V) => 0.37 * lg(V) - 0.14, vmin: 50, vmax: 5000, tol: DIN_TOL, src: 'DIN 18041 A2',
       advice: ['Keep the ceiling above the speaker reflective. It sends speech to the audience.', 'Put absorbers on the rear wall to stop echoes back to the speaker.', 'Put absorbers on the ceiling over the audience.'] },
-    { id: 'meeting', label: 'Meeting room or classroom (DIN 18041 A3)', kind: 'din', f: (V) => 0.32 * lg(V) - 0.17, vmin: 30, vmax: 5000, tol: DIN_TOL_SPEECH, src: 'DIN 18041 A3',
+    { id: 'meeting', label: 'Meeting room or classroom (DIN 18041 A3)', kind: 'din', f: (V) => 0.32 * lg(V) - 0.17, vmin: 30, vmax: 5000, tol: DIN_TOL, src: 'DIN 18041 A3',
       advice: ['Put most of the absorption on the ceiling.', 'Add absorbers on the rear wall to stop echoes.', 'Use wall panels at head height if the ceiling cannot be treated.'] },
-    { id: 'inclusive', label: 'Room for people with hearing loss, or inclusive teaching (DIN 18041 A4)', kind: 'din', f: (V) => 0.26 * lg(V) - 0.14, vmin: 30, vmax: 500, tol: DIN_TOL_SPEECH, src: 'DIN 18041 A4',
+    { id: 'inclusive', label: 'Inclusive teaching or communication (DIN 18041 A4)', kind: 'din', f: (V) => 0.26 * lg(V) - 0.14, vmin: 30, vmax: 500, tol: DIN_TOL, src: 'DIN 18041 A4',
       advice: ['Treat the ceiling and the rear wall.', 'Include bass absorption: long low-frequency reverberation decreases speech clarity.'] },
-    { id: 'sport', label: 'Sports hall (DIN 18041 A5)', kind: 'din', f: (V) => 0.75 * lg(V) - 1.0, vmin: 200, vmax: 10000, tol: DIN_TOL_SPEECH, src: 'DIN 18041 A5',
+    { id: 'classroomUS', label: 'Classroom (ANSI/ASA S12.60, USA)', kind: 'ansi',
+      advice: ['Put most of the absorption on the ceiling.', 'Add absorbers on the rear wall to stop echoes.'] },
+    { id: 'sport', label: 'Sports hall (DIN 18041 A5)', kind: 'din', f: (V) => (V >= 10000 ? 2.0 : 0.75 * lg(V) - 1.0), vmin: 200, vmax: Infinity, tol: DIN_TOL_A5, src: 'DIN 18041 A5',
       advice: ['Use impact-resistant absorbers or ceiling baffles.', 'Treat the ceiling and the upper walls.'] },
+    { id: 'office', label: 'Office or open-plan office (DIN 18041 B4)', kind: 'dinB', grp: 'B4',
+      advice: ['Put absorption on the ceiling over the whole room.', 'In open-plan offices, add absorbing screens between desks and absorbers on the walls.'] },
+    { id: 'singleOffice', label: 'Single office (DIN 18041 B3)', kind: 'dinB', grp: 'B3',
+      advice: ['Put absorption on the ceiling, or on the walls near the desk.'] },
+    { id: 'canteen', label: 'Canteen (DIN 18041 B5)', kind: 'dinB', grp: 'B5',
+      advice: ['Put absorption on the whole ceiling.', 'Add wall absorbers above head height, where they are safe from damage.'] },
   ];
 
   /**
-   * Target RT for a room use and volume V (m³).
-   * @returns { T, tol: {band: [lo, hi]} (ratio to T), shape: {band: centre ratio}, source, note, outOfRange }
+   * Target RT for a room use.
+   * @param {string} useId
+   * @param {number} V room volume (m³)
+   * @param {object} opts { h: room height (m), c: speed of sound (m/s) }
+   * @returns { T, tol: {band: [lo, hi] | null} (ratio to T; null = no requirement), shape, source, note, outOfRange, maxOnly }
    */
-  function targetRT(useId, V) {
+  function targetRT(useId, V, opts = {}) {
     const u = ROOM_USES.find((x) => x.id === useId) || ROOM_USES[0];
+    const c = opts.c || 343;
     let T;
     let tol;
     let source;
+    let note = u.note || null;
     let outOfRange = null;
+    let maxOnly = false;
     if (u.kind === 'din') {
       T = u.f(V);
       tol = u.tol;
       source = u.src;
-      if (V < u.vmin || V > u.vmax) outOfRange = `${u.src} gives this formula for ${u.vmin}–${u.vmax} m³. The room volume is outside this range.`;
+      note = DIN_OCCUPIED;
+      if (V < u.vmin || V >= u.vmax) outOfRange = `${u.src} gives this formula for ${u.vmin} m³ ≤ V < ${u.vmax} m³. The room volume is outside this range.`;
     } else if (u.kind === 'bs1116') {
-      T = 0.25 * Math.cbrt(V / 100); // ITU-R BS.1116, Tm = 0.25 (V/V0)^(1/3), V0 = 100 m³
-      const dT = 0.05 / T; // ±0.05 s from 200 Hz to 4 kHz
-      tol = { 125: [1 - dT, 1 + 0.3 / T], 250: [1 - dT, 1 + dT], 500: [1 - dT, 1 + dT], 1000: [1 - dT, 1 + dT], 2000: [1 - dT, 1 + dT], 4000: [1 - dT, 1 + dT] };
+      T = 0.25 * Math.cbrt(V / 100); // ITU-R BS.1116-3: Tm = 0.25 (V/V0)^(1/3), V0 = 100 m³
+      // ±0.05 s from 200 Hz to 4 kHz; the upper limit increases to +0.3 s at 63 Hz (≈ +0.15 s at 125 Hz).
+      const d = 0.05 / T;
+      tol = { 125: [1 - d, 1 + 0.15 / T], 250: [1 - d, 1 + d], 500: [1 - d, 1 + d], 1000: [1 - d, 1 + d], 2000: [1 - d, 1 + d], 4000: [1 - d, 1 + d] };
       source = 'ITU-R BS.1116';
+      if (T < 0.2 || T > 0.4) outOfRange = 'EBU Tech 3276 limits Tm to 0.2–0.4 s. This room is outside the usual size of a listening room.';
+    } else if (u.kind === 'ansi') {
+      T = V <= 283 ? 0.6 : 0.7;
+      tol = MAX_ONLY(500);
+      maxOnly = true;
+      source = 'ANSI/ASA S12.60';
+      note = 'ANSI/ASA S12.60 gives a maximum RT60 for the unoccupied, furnished classroom (500–2000 Hz).';
+      if (V > 566) outOfRange = 'ANSI/ASA S12.60 gives these limits for classrooms up to 566 m³.';
+    } else if (u.kind === 'dinB') {
+      const ratio = DIN_B[u.grp](opts.h || 2.5);
+      T = (24 * Math.log(10)) / (c * ratio); // A/V ≥ ratio  ⇔  T ≤ 55.26 / (c · ratio)  (Sabine)
+      tol = MAX_ONLY(250);
+      maxOnly = true;
+      source = `DIN 18041 ${u.grp}: A/V ≥ ${ratio.toFixed(3)} m²/m³`;
+      note = `DIN 18041 group ${u.grp[0]} sets a minimum absorption area per volume (A/V) from 250 to 2000 Hz, not an RT60. The advisor converts it to a maximum RT60 with the Sabine formula.`;
     } else {
       T = u.T;
       tol = u.tol;
       source = 'guide value';
     }
+    // Centre of the allowed range (ratio to T), and the relative half width used to weight each band.
     const shape = {};
-    for (const o of OCT6) shape[o] = Math.min(Math.max(1, tol[o][0]), tol[o][1]);
-    return { T, tol, shape, source, note: u.note || null, outOfRange, use: u };
+    const halfWidth = {};
+    for (const o of OCT6) {
+      if (!tol[o]) {
+        shape[o] = 1;
+        halfWidth[o] = null; // no requirement in this band
+      } else if (maxOnly) {
+        shape[o] = 0.9; // aim 10 % below the maximum (design margin)
+        halfWidth[o] = 0.1;
+      } else {
+        shape[o] = (tol[o][0] + tol[o][1]) / 2;
+        halfWidth[o] = (tol[o][1] - tol[o][0]) / 2;
+      }
+    }
+    return { T, tol, shape, halfWidth, source, note, outOfRange, maxOnly, use: u };
   }
 
   /** Room modes of a rectangular room with rigid walls. */

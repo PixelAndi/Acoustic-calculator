@@ -511,4 +511,20 @@ test('target RT: DIN 18041 group A formulas and ITU-R BS.1116', () => {
   assert.ok(near(AC.targetRT('studio', 100).T, 0.25)); // BS.1116 at V = V0
   assert.ok(near(AC.targetRT('studio', 800).T, 0.5));
   assert.ok(AC.targetRT('meeting', 10).outOfRange);
+  assert.ok(AC.targetRT('lecture', 5000).outOfRange); // upper limit is exclusive
+  assert.equal(AC.targetRT('sport', 20000).T, 2.0);
+  assert.deepEqual(AC.targetRT('meeting', 100).tol[125], [0.65, 1.45]);
+  assert.equal(AC.targetRT('sport', 1000).tol[125], null);
+});
+
+test('target RT: DIN 18041 group B (A/V) and ANSI S12.60', () => {
+  const c = 343;
+  // B4, h ≤ 2.5 m: A/V ≥ 0.25  →  T ≤ 55.26 / (c · 0.25)
+  assert.ok(Math.abs(AC.targetRT('office', 100, { h: 2.5, c }).T - (24 * Math.log(10)) / (c * 0.25)) < 1e-12);
+  // B3, h = 3 m: A/V ≥ 1 / (3.13 + 4.69 lg 3)
+  const r = 1 / (3.13 + 4.69 * Math.log10(3));
+  assert.ok(Math.abs(AC.targetRT('singleOffice', 100, { h: 3, c }).T - (24 * Math.log(10)) / (c * r)) < 1e-12);
+  assert.equal(AC.targetRT('classroomUS', 200).T, 0.6);
+  assert.equal(AC.targetRT('classroomUS', 400).T, 0.7);
+  assert.ok(AC.targetRT('classroomUS', 600).outOfRange);
 });
