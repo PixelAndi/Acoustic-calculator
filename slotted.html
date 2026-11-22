@@ -7,6 +7,7 @@
 <meta name="description" content="Calculate the sound absorption of a slotted panel or a slatted wall over a cavity with porous absorber.">
 <link rel="stylesheet" href="css/style.css">
 <script src="js/core.js"></script>
+<script src="js/visual.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/absorber.js"></script>
 </head>
@@ -45,6 +46,8 @@ Resonance (empty cavity, depth d):  f₀ = (c / 2π) √(ε / (t′ d)),   t′ 
     <h2>Limits</h2>
     <ul>
       <li>The panel is rigid and the slots are long compared to their width.</li>
+      <li><b>Comparison with products:</b> for wood slat panels on felt, this model gives lower absorption than the published classes of the products (for example class C–D from the model, class A published, on battens with insulation). When a porous layer or felt touches the back of the panel, use measured data of the product if it is available.</li>
+      <li>The model is for slot or hole spacing much smaller than the wavelength. At high frequencies, when the spacing is near half the wavelength, the result is less accurate.</li>
       <li>The end correction does not include the viscous loss at the ends of the slot. For slots of a few millimetres this loss is small.</li>
       <li>The model is for plane waves in the cavity. The calculation is for a panel of infinite size.</li>
       <li>The resonance formula is for a cavity that is much smaller than the wavelength. Use the curve for the accurate peak frequency.</li>
@@ -63,8 +66,14 @@ AbsorberPage.init(document.getElementById('calc'), {
     { id: 't', label: 'Panel thickness', unit: 'mm', value: 16, min: 0.1, max: 200 },
     { id: 'w', label: 'Slot width', unit: 'mm', value: 5, min: 0.05, max: 500 },
     { id: 'pitch', label: 'Slot pitch (centre to centre)', unit: 'mm', value: 50, min: 0.1, max: 2000 },
+    { id: 'look', label: 'Construction', type: 'select', value: 'slots', options: [
+      { value: 'slots', label: 'Slots cut in one panel' }, { value: 'slats', label: 'Separate slats with gaps' }] },
     ...AbsorberPage.cavityFields,
   ],
+  visual(v, b) {
+    return ['panel', { w: v.pw, h: v.ph, depth: v.t + v.depth, material: 'wood', face: v.look === 'slats' ? 'slats' : 'slots',
+      title: v.look === 'slats' ? 'Slat wall on a frame' : 'Slotted panel on a frame', slots: { pitch: v.pitch, w: v.w } }];
+  },
   build(v, a) {
     if (v.pitch <= v.w) return { error: 'The slot pitch must be more than the slot width.' };
     const fac = AC.slottedFacing({ t: v.t / 1000, w: v.w / 1000, pitch: v.pitch / 1000 });

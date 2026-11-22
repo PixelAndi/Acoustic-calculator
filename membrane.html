@@ -7,6 +7,7 @@
 <meta name="description" content="Calculate the sound absorption and resonance frequency of a membrane (panel) absorber: a limp sheet in front of an air cavity.">
 <link rel="stylesheet" href="css/style.css">
 <script src="js/core.js"></script>
+<script src="js/visual.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/absorber.js"></script>
 </head>
@@ -59,6 +60,10 @@ AbsorberPage.init(document.getElementById('calc'), {
     { id: 'ts', label: 'Sheet thickness', unit: 'mm', value: 6, min: 0.01, max: 100 },
     ...AbsorberPage.cavityFields.map((f) => (f.id === 'depth' ? { ...f, value: 100 } : f)),
   ],
+  visual(v, b) {
+    return ['panel', { w: v.pw, h: v.ph, depth: v.ts + v.depth, material: 'wood', face: 'plain', title: 'Membrane panel on a sealed frame',
+      note: 'The sheet has no holes. The frame is closed and airtight.' }];
+  },
   build(v, a) {
     const m = v.rhoS * v.ts / 1000;
     const cav = AbsorberPage.cavity(v);

@@ -35,6 +35,7 @@
       <li>Select how you know the room now: the mean absorption coefficient, or a measured reverberation time.</li>
       <li>Type these values for each octave band.</li>
       <li>Type the total area of the panels and their absorption coefficients. To use a result from a panel page, click "Save result for other pages" on that page. Then click "Load last panel result" here.</li>
+      <li>For hanging objects (clouds, baffles, furniture), type their equivalent absorption area in the column "Extra A". The clouds and baffles page fills this column.</li>
       <li>Read the reverberation time before and after.</li>
     </ol>
 
@@ -47,7 +48,7 @@
 Eyring:   T = 55.26 V / (−c S ln(1 − ᾱ)),   ᾱ = A / S
 From a measured T:  A = 55.26 V / (c T)
 
-After:    A′ = A − S_p ᾱ + S_p α_p</div>
+After:    A′ = A − S_p ᾱ + S_p α_p + A_extra</div>
     <p>V is the room volume, S is the total surface area and S_p is the panel area. The constant 55.26 is 24 ln 10. The panels cover an area of the room that had the mean absorption coefficient ᾱ.</p>
 
     <h2>Limits</h2>
@@ -67,13 +68,14 @@ const data = {
   room: { 125: 0.1, 250: 0.08, 500: 0.07, 1000: 0.07, 2000: 0.07, 4000: 0.08 },
   rt: { 125: 1.2, 250: 1.1, 500: 1.0, 1000: 1.0, 2000: 0.9, 4000: 0.8 },
   panel: { 125: 0.3, 250: 0.8, 500: 1.0, 1000: 1.0, 2000: 1.0, 4000: 1.0 },
+  extra: { 125: 0, 250: 0, 500: 0, 1000: 0, 2000: 0, 4000: 0 },
 };
 let form;
 
 function buildBands(v) {
   B.innerHTML = '';
   const key = v.existing === 'rt' ? 'rt' : 'room';
-  const head = UI.el('tr', {}, UI.el('th', {}, 'Band'), UI.el('th', {}, key === 'rt' ? 'Measured RT60 (s)' : 'Room mean α'), UI.el('th', {}, 'Panel α'));
+  const head = UI.el('tr', {}, UI.el('th', {}, 'Band'), UI.el('th', {}, key === 'rt' ? 'Measured RT60 (s)' : 'Room mean α'), UI.el('th', {}, 'Panel α'), UI.el('th', {}, 'Extra A (m²)'));
   const tb = UI.el('tbody');
   for (const b of OCTS) {
     const mk = (k, step) => {
@@ -82,7 +84,7 @@ function buildBands(v) {
       inp.addEventListener('input', () => { data[k][b] = Number(inp.value); form.update(); });
       return UI.el('td', {}, inp);
     };
-    tb.append(UI.el('tr', {}, UI.el('th', { scope: 'row' }, b + ' Hz'), mk(key, key === 'rt' ? '0.05' : '0.01'), mk('panel', '0.01')));
+    tb.append(UI.el('tr', {}, UI.el('th', { scope: 'row' }, b + ' Hz'), mk(key, key === 'rt' ? '0.05' : '0.01'), mk('panel', '0.01'), mk('extra', '0.1')));
   }
   B.append(UI.el('div', { class: 'table-wrap' }, UI.el('table', { class: 'data input-table' }, UI.el('thead', {}, head), tb)));
 }
@@ -120,7 +122,7 @@ form = UI.form(document.getElementById('form'), [
       A = v.formula === 'eyring' ? AC.absorptionAreaFromRTEyring({ V, S, T, c }) : AC.absorptionAreaFromRT({ V, T, c });
     } else A = data.room[b] * S;
     const am = A / S;
-    const A2 = A - v.Sp * am + v.Sp * (data.panel[b] || 0);
+    const A2 = A - v.Sp * am + v.Sp * (data.panel[b] || 0) + (data.extra[b] || 0);
     const t1 = rtOf(A), t2 = rtOf(A2);
     if (am > 1) n.push({ level: 'warn', text: `At ${b} Hz the mean absorption coefficient is more than 1. Check the inputs.` });
     before.push([b, t1]); after.push([b, t2]);
@@ -147,7 +149,8 @@ form = UI.form(document.getElementById('form'), [
 document.getElementById('load').addEventListener('click', () => {
   const p = UI.loadPanelResult();
   if (!p) { UI.notes(N, [{ level: 'warn', text: 'No panel result is saved. On a panel page, click "Save result for other pages" first.' }]); return; }
-  for (const b of OCTS) data.panel[b] = +(p.octaveAlpha[b] ?? 0).toFixed(3);
+  if (p.objectArea) for (const b of OCTS) data.extra[b] = +(p.objectArea[b] ?? 0).toFixed(2);
+  else for (const b of OCTS) data.panel[b] = +(p.octaveAlpha[b] ?? 0).toFixed(3);
   lastExisting = null;
   form.update();
 });

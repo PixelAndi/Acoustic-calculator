@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acoustic Panel Types</title>
+<meta name="description" content="A visual guide to acoustic panel types: porous, perforated, slotted, slat, microperforated, membrane, multilayer, clouds, baffles, diffusers and resonators, with the calculator for each.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/visual.js"></script>
+<script src="js/ui.js"></script>
+</head>
+<body>
+<main>
+  <h1>Panel types</h1>
+  <p class="lead">This page shows the types of acoustic panels. Each card shows what the panel looks like, what it does, and which calculator to use. Click a card to open the calculator with an example.</p>
+
+  <h2>Porous absorbers</h2>
+  <div class="gallery" id="g-porous"></div>
+  <h2>Resonant absorbers</h2>
+  <div class="gallery" id="g-res"></div>
+  <h2>Hanging absorbers</h2>
+  <div class="gallery" id="g-hang"></div>
+  <h2>Diffusers</h2>
+  <div class="gallery" id="g-diff"></div>
+
+  <section class="doc">
+    <h2>Absorbers and diffusers</h2>
+    <p>An absorber removes sound energy. It decreases reverberation and noise. A diffuser does not remove much energy. It spreads the reflections in many directions, so the room stays "live" but has no strong echoes. Many rooms use both.</p>
+    <p>Porous absorbers work best at middle and high frequencies. Resonant absorbers work in a narrower band, often at low frequencies. A deep porous absorber, or a porous absorber with an air gap, can also absorb low frequencies.</p>
+  </section>
+</main>
+<script>
+const L = (arr) => 'multilayer.html#L=' + encodeURIComponent(JSON.stringify(arr));
+const qrdCells = (type) => {
+  const N = 7, c = 343, f0 = 500, w = 50, tf = 3, H = 600;
+  const seq = type === 'prd' ? AC.prdSequence(N).seq : AC.qrdSequence(N);
+  const d = AC.diffuserDepths(seq, N, f0, c).map((x) => x * 1000);
+  const dmax = Math.max(...d);
+  const cells = [];
+  let x = 0;
+  for (const di of d) { cells.push({ x, y: 0, w: tf, l: H, h: dmax, front: '#9c7a4b' }); x += tf; cells.push({ x, y: 0, w, l: H, h: dmax - di }); x += w; }
+  cells.push({ x, y: 0, w: tf, l: H, h: dmax, front: '#9c7a4b' }); x += tf;
+  return { cells, totalWidth: x, totalLength: H, maxHeight: dmax };
+};
+const skyCells = () => {
+  const N = 7, w = 50, lam = 343 / 600;
+  const g = AC.qrd2DSequence(N);
+  const cells = [];
+  const mx = (N - 1) * lam / (2 * N) * 1000;
+  g.forEach((col, n) => col.forEach((s, m) => { const h = s * lam / (2 * N) * 1000; cells.push({ x: n * w, y: m * w, w, l: w, h, top: `hsl(35,45%,${78 - 30 * h / mx}%)` }); }));
+  return { cells, totalWidth: N * w, totalLength: N * w, maxHeight: mx };
+};
+
+const CARDS = {
+  'g-porous': [
+    { title: 'Fabric-wrapped wall panel', draw: ['panel', { w: 1200, h: 600, depth: 50, material: 'fabric', face: 'fabric' }],
+      text: 'Mineral wool or glass wool in a frame, covered with acoustically transparent fabric. The most common acoustic panel.',
+      range: 'Middle and high frequencies. Thicker panels reach lower.', href: 'porous.html#ta=50&gap=0', calc: 'Porous absorber' },
+    { title: 'Broadband panel with air gap', draw: ['panel', { w: 1200, h: 600, depth: 200, material: 'fabric', face: 'fabric', note: '100 mm wool + 100 mm air gap' }],
+      text: 'A thick porous panel with an air gap behind it. The air gap moves the absorption to lower frequencies without more material.',
+      range: 'Wide range, from low-middle to high frequencies.', href: L([{ k: 'fabric', R: 50, m: 300 }, { k: 'porous', t: 100, sigma: 10000, model: 'db' }, { k: 'air', t: 100 }]), calc: 'Multilayer' },
+    { title: 'Two-density panel', draw: ['panel', { w: 1200, h: 600, depth: 100, material: 'wool', face: 'plain', note: 'Light wool at the front, dense wool at the back' }],
+      text: 'Two porous layers: a light layer at the front and a denser layer behind. This can give a smooth, wide absorption curve.',
+      range: 'Wide range.', href: L([{ k: 'fabric', R: 50, m: 300 }, { k: 'porous', t: 50, sigma: 5000, model: 'db' }, { k: 'porous', t: 50, sigma: 25000, model: 'db' }]), calc: 'Multilayer' },
+    { title: 'Stretched fabric over an air gap', draw: ['panel', { w: 1200, h: 600, depth: 100, material: 'fabric', face: 'fabric', note: 'Resistive fabric, 100 mm from the wall' }],
+      text: 'A fabric with a high flow resistance, stretched in front of an air space. It absorbs best where the gap is a quarter wavelength.',
+      range: 'Middle frequencies, with peaks and dips.', href: L([{ k: 'fabric', R: 400, m: 0 }, { k: 'air', t: 100 }]), calc: 'Multilayer' },
+    { title: 'Corner bass trap (porous)', draw: 'corner',
+      text: 'A thick porous block that fills a room corner. The calculators on this site do not model this shape, because it is not a flat layer. Use measured data from the manufacturer.',
+      range: 'Low and middle frequencies.', href: 'room-modes.html', calc: 'Room modes (to find the problem frequencies)' },
+  ],
+  'g-res': [
+    { title: 'Perforated wood panel', draw: ['panel', { w: 1200, h: 600, depth: 62, material: 'wood', face: 'holes', holes: { D: 32, r: 4, pattern: 'square' } }],
+      text: 'A wood or MDF panel with round holes, over a cavity with porous absorber. The holes and the cavity make a Helmholtz resonator.',
+      range: 'A band that you select with the open area and the cavity depth.', href: 'perforated.html', calc: 'Perforated panel' },
+    { title: 'Grooved (slotted) panel', draw: ['panel', { w: 1200, h: 600, depth: 66, material: 'wood', face: 'slots', slots: { pitch: 32, w: 4 } }],
+      text: 'A panel with long narrow slots, often with small holes on the back. It works as a resonator in the same way as a perforated panel.',
+      range: 'Low and middle frequencies, depending on the design.', href: 'slotted.html#t=16&w=4&pitch=32&look=slots', calc: 'Slotted panel' },
+    { title: 'Slat wall', draw: ['panel', { w: 1200, h: 600, depth: 66, material: 'wood', face: 'slats', slots: { pitch: 50, w: 10 } }],
+      text: 'Wood slats with gaps between them, over a cavity with porous absorber. Popular for its look. The gaps act as slots.',
+      range: 'Low and middle frequencies; wide gaps also pass high frequencies.', href: 'slotted.html#look=slats&w=10&pitch=50', calc: 'Slotted panel' },
+    { title: 'Microperforated metal panel', draw: ['panel', { w: 1200, h: 600, depth: 51, material: 'metal', face: 'micro', holes: { D: 4, r: 0.2, pattern: 'square' } }],
+      text: 'A thin sheet with holes smaller than 1 mm. The friction in the holes absorbs the sound. No porous material is necessary.',
+      range: 'Middle frequencies; two sheets give a wider band.', href: 'microperforated.html', calc: 'Microperforated panel' },
+    { title: 'Transparent microperforated panel', draw: ['panel', { w: 1200, h: 600, depth: 51, material: 'acrylic', face: 'micro', holes: { D: 5, r: 0.25, pattern: 'square' } }],
+      text: 'A clear acrylic or glass sheet with microperforations. Use it in front of windows or where you must see through the absorber.',
+      range: 'Middle frequencies.', href: 'microperforated.html#mat=acrylic&dh=0.5&D=5', calc: 'Microperforated panel' },
+    { title: 'Double microperforated panel', draw: ['panel', { w: 1200, h: 600, depth: 81, material: 'metal', face: 'micro', holes: { D: 4, r: 0.2, pattern: 'square' }, note: 'Two sheets with air gaps' }],
+      text: 'Two microperforated sheets with air between them. The two resonances give a wider absorption band than one sheet.',
+      range: 'Middle frequencies, wider band.', href: L([{ k: 'mpp', t: 0.5, dh: 0.4, D: 4 }, { k: 'air', t: 30 }, { k: 'mpp', t: 0.5, dh: 0.4, D: 6 }, { k: 'air', t: 50 }]), calc: 'Multilayer' },
+    { title: 'Membrane bass panel', draw: ['panel', { w: 1200, h: 600, depth: 106, material: 'wood', face: 'plain', note: 'Closed sheet on an airtight frame' }],
+      text: 'A thin sheet without holes on a sealed frame, with porous absorber in the cavity. The sheet vibrates and absorbs bass.',
+      range: 'Low frequencies (bass), narrow band.', href: 'membrane.html', calc: 'Membrane absorber' },
+    { title: 'Helmholtz resonator box', draw: ['resonator', { a: 0.025, L: 0.018, V: 0.03 }],
+      text: 'A closed box with one neck (a tube or a hole). Tune it to one room mode. Put it where the mode has high pressure.',
+      range: 'One low frequency.', href: 'helmholtz-resonator.html', calc: 'Helmholtz resonator' },
+  ],
+  'g-hang': [
+    { title: 'Horizontal ceiling cloud', draw: ['cloud', { mode: 'cloud', L: 1200, t: 50, tilt: 0, dHigh: 300 }],
+      text: 'A porous panel that hangs below the ceiling. Sound reaches the lower face, the edges and the upper face.',
+      range: 'Middle and high frequencies; the gap helps lower frequencies.', href: 'clouds.html', calc: 'Clouds and baffles' },
+    { title: 'Tilted ceiling cloud', draw: ['cloud', { mode: 'cloud', L: 1200, t: 50, tilt: 15, dHigh: 200 }],
+      text: 'A cloud at an angle. It absorbs, and it also sends reflections in a new direction (2× the tilt angle).',
+      range: 'Middle and high frequencies.', href: 'clouds.html#mode=tilted&tilt=15&dHigh=200', calc: 'Clouds and baffles' },
+    { title: 'Vertical baffle', draw: ['cloud', { mode: 'baffle', L: 1200, t: 50, dHigh: 400 }],
+      text: 'A vertical porous panel that hangs from the ceiling. Sound reaches both faces. Baffles in rows are common in offices, schools and sports halls.',
+      range: 'Middle and high frequencies.', href: 'clouds.html#mode=baffle&dHigh=400', calc: 'Clouds and baffles' },
+  ],
+  'g-diff': [
+    { title: 'QRD diffuser (1D)', draw: ['blocks', qrdCells('qrd')],
+      text: 'Wells of different depths, separated by thin fins. It scatters sound in one plane (across the wells).',
+      range: 'From the design frequency to approximately c / (2 × well width).', href: 'diffuser.html#type=qrd', calc: 'Diffusers' },
+    { title: 'PRD diffuser (1D)', draw: ['blocks', qrdCells('prd')],
+      text: 'Like a QRD, but with a primitive-root sequence. It decreases the reflection in the mirror direction at the design frequency.',
+      range: 'From the design frequency upwards.', href: 'diffuser.html#type=prd', calc: 'Diffusers' },
+    { title: 'Skyline diffuser (2D)', draw: ['blocks', skyCells()],
+      text: 'A grid of square blocks of different heights. It scatters sound in all directions. Often used on ceilings and rear walls of studios.',
+      range: 'Middle and high frequencies.', href: 'diffuser.html#type=sky', calc: 'Diffusers' },
+  ],
+};
+
+function cornerSvg(box) {
+  box.classList.add('vis');
+  box.innerHTML = `<svg viewBox="0 0 560 300" role="img" aria-label="Triangular porous block in a room corner">
+    <polygon points="120,40 440,40 280,120" style="fill:var(--panel)" opacity="0.5"/>
+    <line x1="280" y1="120" x2="280" y2="290" style="stroke:var(--muted)" stroke-width="2"/>
+    <line x1="120" y1="40" x2="280" y2="120" style="stroke:var(--muted)" stroke-width="2"/>
+    <line x1="440" y1="40" x2="280" y2="120" style="stroke:var(--muted)" stroke-width="2"/>
+    <polygon points="200,80 360,80 280,120" fill="#7a8da0"/>
+    <polygon points="200,80 280,120 280,280 200,240" fill="#5f7387"/>
+    <polygon points="360,80 280,120 280,280 360,240" fill="#46576a"/>
+    <text class="vis-text" x="380" y="200">porous block</text><text class="vis-text" x="380" y="214">in the corner</text>
+  </svg>`;
+}
+
+for (const [id, cards] of Object.entries(CARDS)) {
+  const g = document.getElementById(id);
+  for (const c of cards) {
+    const vis = UI.el('div');
+    const card = UI.el('a', { class: 'card', href: c.href, style: 'text-decoration:none;color:inherit' },
+      vis, UI.el('h3', {}, c.title), UI.el('p', {}, c.text),
+      UI.el('div', { class: 'meta' }, UI.el('div', {}, 'Use: ' + c.range), UI.el('div', {}, 'Calculator: ', UI.el('b', {}, c.calc))));
+    g.append(card);
+    if (c.draw === 'corner') cornerSvg(vis);
+    else VIS[c.draw[0]](vis, c.draw[1]);
+  }
+}
+</script>
+</body>
+</html>

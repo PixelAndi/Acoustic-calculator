@@ -7,11 +7,17 @@
 
   const PAGES = [
     { href: 'index.html', label: 'Home' },
+    { href: 'advisor.html', label: 'Room advisor' },
+    { href: 'panels.html', label: 'Panel types' },
     { href: 'porous.html', label: 'Porous' },
     { href: 'perforated.html', label: 'Perforated' },
     { href: 'slotted.html', label: 'Slotted' },
     { href: 'microperforated.html', label: 'Microperforated' },
     { href: 'membrane.html', label: 'Membrane' },
+    { href: 'multilayer.html', label: 'Multilayer' },
+    { href: 'clouds.html', label: 'Clouds & baffles' },
+    { href: 'diffuser.html', label: 'Diffusers' },
+    { href: 'helmholtz-resonator.html', label: 'Resonator' },
     { href: 'resonance.html', label: 'Resonance' },
     { href: 'flow-resistivity.html', label: 'Flow resistivity' },
     { href: 'ratings.html', label: 'NRC / αw' },
@@ -239,7 +245,7 @@
     function update() {
       const v = rawValues();
       const ok = validate(v);
-      if (opts.urlState !== false) writeUrlState(v);
+      if (opts.urlState !== false) writeUrlState(opts.extraState ? { ...v, ...opts.extraState() } : v);
       onChange(v, ok);
     }
 
@@ -393,7 +399,7 @@
   }
 
   /* ---------- cross-section diagram ---------- */
-  function diagram(container, parts) {
+  function diagram(container, parts, dopts = {}) {
     // parts: list from the ROOM side to the WALL: {kind:'facing'|'porous'|'air'|'membrane', label, mm}
     container.innerHTML = '';
     const W = 360;
@@ -446,9 +452,13 @@
       lab.textContent = p.label;
       x += w;
     }
-    // wall
-    mk('rect', { x, y: 10, width: 14, height: 110, fill: 'var(--muted)' });
-    txt(x + 7, 8, 'Wall');
+    if (dopts.open) {
+      txt(x + 4, 66, 'Open', 'start');
+      txt(x + 4, 80, '(air)', 'start');
+    } else {
+      mk('rect', { x, y: 10, width: 14, height: 110, fill: 'var(--muted)' });
+      txt(x + 7, 8, 'Wall');
+    }
     container.append(svg);
   }
 
@@ -583,6 +593,7 @@
     copyLink,
     savePanelResult,
     project,
+    readUrlState,
     loadPanelResult,
     cssVar,
     diagram,

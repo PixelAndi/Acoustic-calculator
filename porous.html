@@ -7,6 +7,7 @@
 <meta name="description" content="Calculate the sound absorption of a porous absorber (mineral wool, glass wool, foam) on a rigid wall, with or without an air gap.">
 <link rel="stylesheet" href="css/style.css">
 <script src="js/core.js"></script>
+<script src="js/visual.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/absorber.js"></script>
 </head>
@@ -70,6 +71,10 @@ AbsorberPage.init(document.getElementById('calc'), {
     { group: 'Mounting' },
     { id: 'gap', label: 'Air gap to wall', unit: 'mm', value: 0, min: 0, max: 2000 },
   ],
+  visual(v, b) {
+    return ['panel', { w: v.pw, h: v.ph, depth: v.ta, material: 'fabric', face: 'fabric', title: 'Fabric-covered porous panel',
+      note: v.gap > 0 ? `Mounted with a ${v.gap} mm air gap to the wall.` : 'Mounted directly on the wall.' }];
+  },
   build(v, a) {
     const layers = [
       { type: 'air', thickness: v.gap / 1000 },

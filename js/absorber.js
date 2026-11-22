@@ -18,6 +18,13 @@
   };
 
   const COMMON_FIELDS = (opts) => [
+    ...(opts.noPanelSize
+      ? []
+      : [
+          { group: 'Panel size' },
+          { id: 'pw', label: 'Panel width', unit: 'mm', value: opts.defaultW || 1200, min: 50, max: 10000, help: 'For the drawing, the quantities and the project. The calculation is for a large area.' },
+          { id: 'ph', label: 'Panel height', unit: 'mm', value: opts.defaultH || 600, min: 50, max: 10000 },
+        ]),
     { group: 'Sound field' },
     {
       id: 'incidence',
@@ -91,8 +98,6 @@
 
     // ---- "Add to project" card ----
     const pjLabel = el('input', { type: 'text', id: 'pj-label', maxlength: '80', placeholder: 'For example: Rear wall panels' });
-    const pjW = el('input', { type: 'number', id: 'pj-w', min: '10', step: '1', value: '1200', inputmode: 'decimal' });
-    const pjH = el('input', { type: 'number', id: 'pj-h', min: '10', step: '1', value: '600', inputmode: 'decimal' });
     const pjQ = el('input', { type: 'number', id: 'pj-q', min: '1', step: '1', value: '1', inputmode: 'numeric' });
     const pjBtn = el('button', { class: 'btn primary', type: 'button' }, 'Add to project');
     const pjMsg = el('div', { class: 'derived', role: 'status' });
@@ -102,18 +107,19 @@
       'div',
       { class: 'card no-print' },
       el('h2', {}, 'Add to project document'),
-      el('p', { class: 'derived' }, 'Save this design with the panel size and quantity. The project page makes a document that you can print or save as PDF.'),
+      el('p', { class: 'derived' }, 'Save this design with a name and a quantity. The panel size comes from the inputs. The project page makes a document that you can print or save as PDF.'),
       el('div', { class: 'field full' }, el('label', { for: 'pj-label' }, 'Panel name'), el('div', { class: 'input-wrap' }, pjLabel)),
-      row('pj-w', 'Panel width', pjW, 'mm'),
-      row('pj-h', 'Panel height', pjH, 'mm'),
       row('pj-q', 'Quantity', pjQ, 'pcs'),
       el('div', { class: 'btn-row' }, pjBtn),
       pjMsg
     );
 
+    const viewBox = el('div', { class: 'panel-view' });
+    const viewCard = el('div', { class: 'card' }, el('h2', {}, 'What the panel looks like'), viewBox);
     const out = el(
       'div',
       {},
+      viewCard,
       el(
         'div',
         { class: 'card' },
@@ -132,6 +138,7 @@
 
     const pinned = [];
     let last = null;
+    let lastVisual = null;
 
     function compute(v, ok) {
       if (!ok) {
@@ -168,7 +175,17 @@
       last = { curve, third, octave, rt, name: `${opts.name} – ${b.short || ''} (${incLabel})`, v, b, peak, incLabel, air: a };
 
       // Derived values + diagram
-      UI.diagram(diag, b.parts);
+      UI.diagram(diag, b.parts, b.diagramOpts || {});
+      lastVisual = null;
+      if (opts.visual && root.VIS) {
+        try {
+          lastVisual = opts.visual(v, b);
+          VIS[lastVisual[0]](viewBox, lastVisual[1]);
+          viewCard.style.display = '';
+        } catch (e) {
+          viewCard.style.display = 'none';
+        }
+      } else viewCard.style.display = 'none';
       derived.innerHTML = '';
       for (const [label, value] of b.info || []) derived.append(el('div', {}, label + ': ', el('b', {}, value)));
       derived.append(el('div', {}, 'Speed of sound: ', el('b', {}, fmt(a.c, 1) + ' m/s'), ' · Air density: ', el('b', {}, fmt(a.rho, 3) + ' kg/m³')));
@@ -311,9 +328,9 @@
 
     pjBtn.addEventListener('click', () => {
       if (!last) return;
-      const W = Number(pjW.value), H = Number(pjH.value), Q = Math.round(Number(pjQ.value));
-      if (!(W >= 10 && H >= 10 && Q >= 1)) {
-        pjMsg.textContent = 'Type a panel width and height of 10 mm or more, and a quantity of 1 or more.';
+      const W = last.v.pw || 1200, H = last.v.ph || 600, Q = Math.round(Number(pjQ.value));
+      if (!(Q >= 1)) {
+        pjMsg.textContent = 'Type a quantity of 1 or more.';
         return;
       }
       const thin = last.curve.filter((_, i) => i % 2 === 0);
@@ -324,7 +341,10 @@
         label: pjLabel.value.trim() || opts.name + ' panel',
         model: last.name,
         values: last.v,
-        inputs: inputRows(last.v),
+        extra: opts.extraState ? opts.extraState() : null,
+        extraRows: opts.extraRows ? opts.extraRows() : [],
+        visual: lastVisual,
+        inputs: [...inputRows(last.v), ...(opts.extraRows ? opts.extraRows() : [])],
         info: last.b.info || [],
         parts: last.b.parts,
         resonance: last.b.resonance ? { label: last.b.resonance.label, f: last.b.resonance.f, sub: last.b.resonance.sub || '' } : null,
@@ -349,7 +369,13 @@
       pjMsg.append(`Added. The project has ${n} design${n === 1 ? '' : 's'}. `, el('a', { href: 'project.html' }, 'Open the project document'), '.');
     });
 
-    const f = UI.form(formBox, allFields, compute);
+    let f = null;
+    if (opts.editor) {
+      const edBox = el('div', { class: 'layer-editor' });
+      inputs.insertBefore(edBox, formBox);
+      opts.editor(edBox, () => f && f.update());
+    }
+    f = UI.form(formBox, allFields, compute, { extraState: opts.extraState });
     document.addEventListener('themechange', () => f.update());
     return f;
   }

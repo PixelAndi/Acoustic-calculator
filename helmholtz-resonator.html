@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helmholtz Resonator Calculator</title>
+<meta name="description" content="Calculate the resonance frequency of a single Helmholtz resonator (bottle or box with a neck), or the volume for a target frequency.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/visual.js"></script>
+<script src="js/ui.js"></script>
+</head>
+<body>
+<main>
+  <h1>Single Helmholtz resonator</h1>
+  <p class="lead">This calculator gives the resonance frequency of one resonator: a closed box (or bottle) with a neck. Use it to design a tuned bass absorber for one room mode.</p>
+
+  <div class="calc">
+    <div class="card"><h2>Inputs</h2><div id="form"></div>
+      <div class="btn-row"><button class="btn" id="link" type="button">Copy link to these inputs</button></div>
+    </div>
+    <div>
+      <div class="card"><h2>What it looks like</h2><div id="view" class="panel-view" style="max-width:460px"></div></div>
+      <div class="card"><h2>Results</h2><div id="kpis"></div><div id="notes"></div></div>
+    </div>
+  </div>
+
+  <section class="doc">
+    <h2>How to use</h2>
+    <ol>
+      <li>Select what you want to find: the frequency or the volume.</li>
+      <li>Type the neck diameter and the neck length. The neck length is the thickness of the wall with the hole, or the length of the tube.</li>
+      <li>Select the type of the outer end of the neck.</li>
+      <li>Type the internal volume of the box, or the target frequency.</li>
+      <li>Find the room modes with the <a href="room-modes.html">room modes</a> calculator. Tune the resonator to the mode that causes the problem.</li>
+    </ol>
+
+    <h2>Description</h2>
+    <p>The air in the neck is a mass. The air in the box is a spring. At the resonance frequency the air in the neck moves strongly. Porous material in the box or a resistive cloth over the neck changes this energy into heat. The absorption band is narrow.</p>
+
+    <h2>Method</h2>
+    <div class="formula">f₀ = (c / 2π) √(S / (V L′)),   S = π a²
+L′ = L + δ_inner + δ_outer
+δ = 0.85 a  (end in a wall or flange, Rayleigh)
+δ = 0.61 a  (end of a free tube, Levine &amp; Schwinger)
+Volume for a target f₀:  V = S / (L′ (2π f₀ / c)²)</div>
+    <p>a is the neck radius and V is the internal volume of the box. The inner end is inside the box and is usually flanged.</p>
+
+    <h2>Limits</h2>
+    <ul>
+      <li>All dimensions of the box and the neck must be much smaller than the wavelength. The calculator shows a warning if the largest dimension is more than 1/8 of the wavelength.</li>
+      <li>The formula gives the frequency only. The absorption depends on the damping and on the position in the room. Put the resonator where the room mode has high pressure (for example, in a corner).</li>
+      <li>Porous material in the box lowers the frequency a little.</li>
+    </ul>
+    <p class="refs">References: Lord Rayleigh, <i>The Theory of Sound</i>. H. Levine &amp; J. Schwinger, Phys. Rev. 73 (1948) 383–406. L. E. Kinsler et al., <i>Fundamentals of Acoustics</i>.</p>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+UI.copyLink($('link'));
+UI.form($('form'), [
+  { group: 'Find' },
+  { id: 'solve', label: 'Find', type: 'select', value: 'f', options: [{ value: 'f', label: 'Resonance frequency' }, { value: 'V', label: 'Box volume' }] },
+  { group: 'Neck' },
+  { id: 'dn', label: 'Neck diameter', unit: 'mm', value: 50, min: 1, max: 1000 },
+  { id: 'L', label: 'Neck length', unit: 'mm', value: 18, min: 0, max: 2000 },
+  { id: 'outer', label: 'Outer end of the neck', type: 'select', value: 'flanged', options: [
+    { value: 'flanged', label: 'In a flat wall or panel (flanged)' }, { value: 'unflanged', label: 'Free tube end (unflanged)' }] },
+  { group: 'Box' },
+  { id: 'V', label: 'Internal volume', unit: 'litres', value: 30, min: 0.01, max: 10000, showIf: (v) => v.solve === 'f' },
+  { id: 'f0', label: 'Target frequency', unit: 'Hz', value: 60, min: 10, max: 2000, showIf: (v) => v.solve === 'V' },
+  { group: 'Air' },
+  { id: 'temp', label: 'Air temperature', unit: '°C', value: 20, min: -20, max: 50 },
+], (v, ok) => {
+  if (!ok) { UI.notes($('notes'), [{ level: 'error', text: 'One or more inputs are not correct. Correct the inputs that show in red.' }]); return; }
+  const a = AC.air(v.temp);
+  const r = v.dn / 2000;
+  let V, f0, res;
+  if (v.solve === 'f') { V = v.V / 1000; res = AC.helmholtzResonator({ a: r, L: v.L / 1000, V, c: a.c, outer: v.outer }); f0 = res.f0; }
+  else {
+    const probe = AC.helmholtzResonator({ a: r, L: v.L / 1000, V: 1, c: a.c, outer: v.outer });
+    const k = (2 * Math.PI * v.f0) / a.c;
+    V = probe.S / (probe.Leff * k * k);
+    res = AC.helmholtzResonator({ a: r, L: v.L / 1000, V, c: a.c, outer: v.outer });
+    f0 = res.f0;
+  }
+  const lam = a.c / f0;
+  const side = Math.cbrt(V);
+  UI.kpis($('kpis'), [
+    v.solve === 'f' ? { label: 'Resonance frequency', value: UI.fmt(f0, 1) + ' Hz' } : { label: 'Internal volume', value: UI.fmt(V * 1000, 2) + ' litres', sub: 'for ' + v.f0 + ' Hz' },
+    { label: 'Effective neck length L′', value: UI.fmt(res.Leff * 1000, 1) + ' mm' },
+    { label: 'Cube with this volume', value: UI.fmt(side * 1000, 0) + ' mm', sub: 'side length' },
+    { label: 'Wavelength at f₀', value: UI.fmt(lam, 2) + ' m' },
+  ]);
+  VIS.resonator($('view'), { a: r, L: v.L / 1000, V });
+  const n = [];
+  const largest = Math.max(side, res.Leff, 2 * r);
+  if (largest > lam / 8) n.push({ level: 'warn', text: `The largest dimension (${UI.fmt(largest * 1000, 0)} mm) is more than 1/8 of the wavelength. The formula is less accurate.` });
+  if (2 * r > side) n.push({ level: 'warn', text: 'The neck is wider than the box. Check the inputs.' });
+  n.push({ text: 'Put some porous material in the box, or a thin resistive cloth over the neck, to absorb energy. Without damping, the resonator absorbs little: it radiates most of the energy back into the room.' });
+  UI.notes($('notes'), n);
+});
+</script>
+</body>
+</html>

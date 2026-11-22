@@ -7,6 +7,7 @@
 <meta name="description" content="Calculate the sound absorption of a perforated panel (round holes) over a cavity with porous absorber.">
 <link rel="stylesheet" href="css/style.css">
 <script src="js/core.js"></script>
+<script src="js/visual.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/absorber.js"></script>
 </head>
@@ -50,6 +51,8 @@ Resonance (empty cavity, depth d):  f₀ = (c / 2π) √(ε / (t′ d))</div>
     <h2>Limits</h2>
     <ul>
       <li>The panel is rigid. It does not vibrate.</li>
+      <li><b>Comparison with products:</b> for wood slat panels on felt, this model gives lower absorption than the published classes of the products (for example class C–D from the model, class A published, on battens with insulation). When a porous layer or felt touches the back of the panel, use measured data of the product if it is available.</li>
+      <li>The model is for slot or hole spacing much smaller than the wavelength. At high frequencies, when the spacing is near half the wavelength, the result is less accurate.</li>
       <li>The model is for plane waves in the cavity. It does not include the extra resistance near the holes when the absorber touches the panel. The real result can be slightly different.</li>
       <li>The end-correction formula is an approximation. It is less accurate for a large open area (more than approximately 20 %).</li>
       <li>The resonance formula is for a cavity that is much smaller than the wavelength. Use the curve for the accurate peak frequency.</li>
@@ -74,6 +77,10 @@ AbsorberPage.init(document.getElementById('calc'), {
       { value: 'square', label: 'Square grid' }, { value: 'triangular', label: 'Triangular grid' }] },
     ...cavityFields,
   ],
+  visual(v, b) {
+    return ['panel', { w: v.pw, h: v.ph, depth: v.t + v.depth, material: 'wood', face: 'holes', title: 'Perforated panel on a frame',
+      holes: { D: v.D, r: v.dh / 2, pattern: v.pattern } }];
+  },
   build(v, a) {
     if (v.D <= v.dh) return { error: 'The hole spacing must be more than the hole diameter.' };
     const fac = AC.perforatedFacing({ t: v.t / 1000, a: v.dh / 2000, D: v.D / 1000, pattern: v.pattern });

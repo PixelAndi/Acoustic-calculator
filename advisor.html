@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room Treatment Advisor</title>
+<meta name="description" content="Get recommendations for acoustic treatment of a room: target reverberation time, absorption needed, ranked panel and product solutions, and furniture tips.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/visual.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/treatments.js"></script>
+</head>
+<body>
+<main>
+  <h1>Room treatment advisor</h1>
+  <p class="lead">Describe the room. The advisor finds the target reverberation time, calculates how much absorption the room needs, and recommends panels, shop products and furniture.</p>
+
+  <div class="calc">
+    <div class="card">
+      <h2>The room</h2>
+      <div id="form"></div>
+      <h3>Measured RT60 (s)</h3>
+      <div id="rtBox"></div>
+      <h3>My products (from data sheets)</h3>
+      <p class="derived">Add a product that you can buy. Type its absorption coefficients from the data sheet (ISO 354 or ASTM C423 test). The advisor then uses real data.</p>
+      <div id="myProducts"></div>
+      <div class="btn-row">
+        <button class="btn" id="addProd" type="button">Add a product</button>
+        <button class="btn" id="addLast" type="button">Add my last calculated panel</button>
+      </div>
+    </div>
+    <div>
+      <div class="card"><h2>The room now and the target</h2><div id="kpis"></div><div id="chart"></div><div id="notes"></div></div>
+      <div class="card"><h2>Recommendations</h2><div id="advice"></div></div>
+      <div class="card"><h2>Solutions, best first</h2>
+        <p class="derived">Each solution uses one or two treatments. The advisor finds the area that gives the reverberation time nearest to the target in the bands that have a requirement. Solutions within your maximum area come first. Click a row to show it on the chart.</p>
+        <div id="options"></div>
+        <div class="btn-row"><button class="btn primary" id="pj-add" type="button">Add the selected solution to the project</button></div>
+        <div class="derived" id="pjMsg" role="status"></div>
+      </div>
+      <div class="card"><h2>Furniture and soft furnishings</h2>
+        <p class="derived">These help, but the advisor does not count them in the numbers, because their absorption changes much from one item to another. Add them, then measure the room again.</p>
+        <div id="furniture"></div></div>
+      <div class="card"><h2>Treatments in the comparison</h2><div id="catalog"></div></div>
+    </div>
+  </div>
+
+  <section class="doc">
+    <h2>How to use</h2>
+    <ol>
+      <li>Select how the room is used. This sets the target reverberation time.</li>
+      <li>Type the length, width and height of the room.</li>
+      <li>Select how you know the room now. A measured RT60 gives the best result. If you cannot measure, select a description. The description uses a rough assumption.</li>
+      <li>If you have a product in mind, click "Add a product" and type the values from its data sheet.</li>
+      <li>Read the recommendations and the list of solutions. Click a solution to see the result on the chart.</li>
+      <li>Click "Add the selected solution to the project" to keep the plan.</li>
+    </ol>
+
+    <h2>How the advisor works</h2>
+    <ol>
+      <li>It calculates the equivalent absorption area of the room now: A = 55.26 V / (c T), from the measured or assumed values.</li>
+      <li>It calculates the absorption area for the target: A_target = 55.26 V / (c T_target).</li>
+      <li>The difference is the absorption to add in each octave band.</li>
+      <li>For each treatment it uses the diffuse-field absorption coefficient from the calculators on this site (or your data sheet values).</li>
+      <li>It finds the area of one treatment, or of two treatments together, that gives the reverberation time nearest to the target (least squares on the relative error, divided by the tolerance of each band; bands without a requirement are not used; areas not negative).</li>
+      <li>It sorts the solutions: first the solutions within your maximum area, then by the number of bands in the target range, then by the largest deviation.</li>
+    </ol>
+    <p>If the requirement is a maximum (ANSI S12.60, DIN 18041 group B), the advisor aims 10 % below the maximum as a design margin.</p>
+    <p>The panels cover hard surfaces. The advisor assumes that the absorption of the covered surface is small and does not subtract it.</p>
+
+    <h2>Limits</h2>
+    <ul>
+      <li>The Sabine formula assumes a diffuse sound field. In small rooms, below the Schroeder frequency, room modes are more important than the reverberation time.</li>
+      <li>Shop products use published data: measured values where they exist, or a published absorption class. A class gives only one number (αw). The advisor then uses the ISO 11654 reference curve at that αw as an example spectrum, and 0 at 125 Hz. The real product can be different. Type the data sheet values in "My products" for a reliable result.</li>
+      <li>Furniture is not counted. For values, see the furniture list.</li>
+      <li>The advisor does not know about prices or offers. Type a price per m² if you want to compare costs.</li>
+      <li>The position of the treatment is important. The advisor gives general rules for the position. It does not calculate it.</li>
+      <li>After you install the treatment, measure the room again.</li>
+    </ul>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const OCTS = TREAT.OCTS;
+const PRESETS = {
+  bare: { label: 'Empty room, hard surfaces (assumed)', alpha: [0.05, 0.05, 0.05, 0.05, 0.06, 0.07] },
+  hard: { label: 'Furnished, hard floor, no soft items (assumed)', alpha: [0.08, 0.08, 0.09, 0.1, 0.1, 0.1] },
+  soft: { label: 'Furnished, carpet, sofa and curtains (assumed)', alpha: [0.12, 0.15, 0.2, 0.25, 0.28, 0.3] },
+};
+let measured = { 125: 1.2, 250: 1.1, 500: 1.0, 1000: 1.0, 2000: 0.9, 4000: 0.8 };
+let myProducts = [];
+try { myProducts = JSON.parse(localStorage.getItem('ac-products') || '[]'); } catch (_) { myProducts = []; }
+const saveProducts = () => { try { localStorage.setItem('ac-products', JSON.stringify(myProducts)); } catch (_) {} };
+let state = null;
+const alphaCache = { key: null, map: {} };
+let selected = 0;
+let form;
+
+/* ---------- measured RT table ---------- */
+function renderRt(show) {
+  const box = $('rtBox');
+  box.innerHTML = '';
+  box.previousElementSibling.style.display = show ? '' : 'none';
+  if (!show) return;
+  const tr = UI.el('tr', {}, OCTS.map((o) => {
+    const inp = UI.el('input', { type: 'number', step: '0.05', min: '0.05', 'aria-label': `RT60 at ${o} Hz` });
+    inp.value = measured[o];
+    inp.addEventListener('input', () => { measured[o] = Number(inp.value); form.update(); });
+    return UI.el('td', {}, inp);
+  }));
+  box.append(UI.el('div', { class: 'table-wrap' }, UI.el('table', { class: 'data input-table' }, UI.el('thead', {}, UI.el('tr', {}, OCTS.map((o) => UI.el('th', {}, o + ' Hz')))), UI.el('tbody', {}, tr))));
+}
+
+/* ---------- my products ---------- */
+function renderProducts() {
+  const box = $('myProducts');
+  box.innerHTML = '';
+  myProducts.forEach((p, i) => {
+    const name = UI.el('input', { type: 'text', value: p.name, 'aria-label': 'Product name', style: 'width:100%' });
+    name.addEventListener('input', () => { p.name = name.value; saveProducts(); form.update(); });
+    const price = UI.el('input', { type: 'number', min: '0', step: 'any', value: p.price ?? '', 'aria-label': 'Price per m²', style: 'width:6rem' });
+    price.addEventListener('input', () => { p.price = price.value === '' ? null : Number(price.value); saveProducts(); form.update(); });
+    const cells = OCTS.map((o, j) => {
+      const inp = UI.el('input', { type: 'number', min: '0', max: '1.5', step: '0.01', value: p.alpha[j], 'aria-label': `α at ${o} Hz` });
+      inp.addEventListener('input', () => { p.alpha[j] = Number(inp.value); saveProducts(); form.update(); });
+      return UI.el('td', {}, inp);
+    });
+    const rm = UI.el('button', { class: 'btn', type: 'button', onclick: () => { myProducts.splice(i, 1); saveProducts(); renderProducts(); form.update(); } }, 'Remove');
+    box.append(UI.el('div', { class: 'layer' },
+      UI.el('div', { class: 'layer-head' }, name, rm),
+      UI.el('div', { class: 'table-wrap' }, UI.el('table', { class: 'data input-table' },
+        UI.el('thead', {}, UI.el('tr', {}, OCTS.map((o) => UI.el('th', {}, o)))), UI.el('tbody', {}, UI.el('tr', {}, cells)))),
+      UI.el('div', { class: 'derived' }, 'Price per m² (optional): ', price)));
+  });
+  box.classList.add('layer-editor');
+}
+$('addProd').addEventListener('click', () => {
+  myProducts.push({ name: 'My product', alpha: [0.1, 0.3, 0.6, 0.8, 0.85, 0.85], price: null });
+  saveProducts(); renderProducts(); form.update();
+});
+$('addLast').addEventListener('click', () => {
+  const p = UI.loadPanelResult();
+  if (!p || !p.octaveAlpha) { alert('No panel result is saved. On a panel page, click "Save result for other pages" first.'); return; }
+  myProducts.push({ name: p.name, alpha: OCTS.map((o) => +(p.octaveAlpha[o] ?? 0).toFixed(3)), price: null, calculated: true });
+  saveProducts(); renderProducts(); form.update();
+});
+
+/* ---------- main calculation ---------- */
+form = UI.form($('form'), [
+  { group: 'Use of the room' },
+  { id: 'use', label: 'Room use', type: 'select', value: 'living', options: AC.ROOM_USES.map((u) => ({ value: u.id, label: u.label })) },
+  { group: 'Size' },
+  { id: 'L', label: 'Length', unit: 'm', value: 5, min: 1, max: 100 },
+  { id: 'W', label: 'Width', unit: 'm', value: 4, min: 1, max: 100 },
+  { id: 'H', label: 'Height', unit: 'm', value: 2.5, min: 1.5, max: 30 },
+  { group: 'The room now' },
+  { id: 'now', label: 'How do you know the room?', type: 'select', value: 'hard', options: [
+    { value: 'measured', label: 'I measured the RT60' }, ...Object.entries(PRESETS).map(([k, p]) => ({ value: k, label: p.label }))] },
+  { id: 'cover', label: 'Maximum area for treatment', unit: '%', value: 40, min: 5, max: 100, help: 'Of the wall and ceiling area. The advisor warns if a solution needs more.' },
+  { group: 'Air' },
+  { id: 'temp', label: 'Air temperature', unit: '°C', value: 20, min: -20, max: 50 },
+], compute);
+
+function compute(v, ok) {
+  renderRt(v.now === 'measured');
+  if (!ok) { UI.notes($('notes'), [{ level: 'error', text: 'One or more inputs are not correct. Correct the inputs that show in red.' }]); return; }
+  const a = AC.air(v.temp);
+  const V = v.L * v.W * v.H;
+  const S = 2 * (v.L * v.W + v.L * v.H + v.W * v.H);
+  const wallCeil = 2 * (v.L + v.W) * v.H + v.L * v.W;
+  const K = 24 * Math.log(10);
+  let Anow;
+  if (v.now === 'measured') {
+    if (OCTS.some((o) => !(measured[o] > 0))) { UI.notes($('notes'), [{ level: 'error', text: 'Type a measured RT60 for each band.' }]); return; }
+    Anow = OCTS.map((o) => (K * V) / (a.c * measured[o]));
+  } else Anow = PRESETS[v.now].alpha.map((x) => x * S);
+  const Tnow = Anow.map((A) => (K * V) / (a.c * A));
+  const tg = AC.targetRT(v.use, V, { h: v.H, c: a.c });
+  const Ttar = OCTS.map((o) => tg.T * tg.shape[o]);
+  const Atar = Ttar.map((T) => (K * V) / (a.c * T));
+  const dA = Atar.map((A, i) => A - Anow[i]);
+  // Weight: relative error divided by the allowed relative deviation; bands without a requirement get 0.
+  const w = Atar.map((A, b) => (tg.halfWidth[OCTS[b]] ? 1 / Math.pow(A * tg.halfWidth[OCTS[b]], 2) : 0));
+  const req = OCTS.map((o) => !!tg.tol[o]);
+
+  // Candidate treatments
+  const cands = [];
+  const ck = String(v.temp);
+  if (alphaCache.key !== ck) { alphaCache.key = ck; alphaCache.map = {}; }
+  for (const t of TREAT.CATALOG) {
+    if (t.kind !== 'model') { cands.push({ id: t.id, name: t.name, alpha: t.alpha, src: t.kind, t }); continue; }
+    if (!alphaCache.map[t.id]) alphaCache.map[t.id] = TREAT.octaveAlpha(t.cons(), a);
+    cands.push({ id: t.id, name: t.name, alpha: alphaCache.map[t.id], src: 'model', t });
+  }
+  myProducts.forEach((p, i) => cands.push({ id: 'my' + i, name: p.name, alpha: p.alpha.map((x) => Math.max(0, Number(x) || 0)), src: p.calculated ? 'calculated' : 'data sheet', price: p.price }));
+
+  // Solutions: every single treatment and every pair
+  const sols = [];
+  const evalSol = (list) => {
+    const fit = AC.fitTreatmentAreas(dA, list.map((c) => c.alpha), w);
+    const Aafter = Anow.map((A, b) => A + list.reduce((s, c, j) => s + fit.areas[j] * c.alpha[b], 0));
+    const Tafter = Aafter.map((A) => (K * V) / (a.c * A));
+    const dev = Tafter.map((T, b) => (req[b] ? T / Ttar[b] - 1 : 0));
+    const inTol = OCTS.map((o, b) => !tg.tol[o] || (Tafter[b] >= tg.T * tg.tol[o][0] - 1e-9 && Tafter[b] <= tg.T * tg.tol[o][1] + 1e-9));
+    const total = fit.areas.reduce((s, x) => s + x, 0);
+    const cost = list.every((c) => c.price > 0) ? list.reduce((s, c, j) => s + c.price * fit.areas[j], 0) : null;
+    return { list, areas: fit.areas, Tafter, maxDev: Math.max(...dev.map(Math.abs)), inTol: inTol.filter((x, b) => x && req[b]).length, nReq: req.filter(Boolean).length, total, cover: total / wallCeil, fits: total / wallCeil <= v.cover / 100 + 1e-9, cost };
+  };
+  for (let i = 0; i < cands.length; i++) {
+    sols.push(evalSol([cands[i]]));
+    for (let j = i + 1; j < cands.length; j++) sols.push(evalSol([cands[i], cands[j]]));
+  }
+  const useful = sols.filter((s) => s.areas.every((x) => x > 0.05));
+  const rank = (p, q) => (q.fits - p.fits) || (q.inTol - p.inTol) || (p.maxDev - q.maxDev) || (p.total - q.total);
+  useful.sort(rank);
+  // Remove pairs that are not better than their best single member
+  const top = [];
+  for (const s of useful) {
+    if (top.length >= 10) break;
+    top.push(s);
+  }
+  // Best solution that contains each treatment (so that every product type is shown)
+  const perTreatment = cands.map((c) => ({ c, best: useful.find((s) => s.list.length === 1 && s.list[0] === c) || null }));
+  state = { v, a, V, S, wallCeil, Tnow, Ttar, tg, dA, top, cands, Anow, perTreatment };
+  if (selected >= top.length) selected = 0;
+
+  const mid = (arr) => (arr[2] + arr[3]) / 2;
+  UI.kpis($('kpis'), [
+    { label: 'Volume', value: UI.fmt(V, 1) + ' m³', sub: `walls + ceiling ${UI.fmt(wallCeil, 1)} m²` },
+    { label: 'RT60 now (500–1k)', value: UI.fmt(mid(Tnow), 2) + ' s', sub: v.now === 'measured' ? 'measured' : 'from an assumption' },
+    { label: tg.maxOnly ? 'Maximum RT60' : 'Target RT60', value: UI.fmt(tg.T, 2) + ' s', sub: tg.source },
+    { label: 'Absorption to add (500–1k)', value: UI.fmt(Math.max(0, mid(dA)), 1) + ' m²', sub: 'equivalent absorption area' },
+  ]);
+  renderChart();
+  renderOptions();
+  renderAdvice();
+  const n = [];
+  if (v.now !== 'measured') n.push({ level: 'warn', text: 'The room now is a rough assumption, not a measurement. Measure the RT60 for a reliable result (for example with a sound level meter or a measurement app and a loud clap or balloon pop).' });
+  if (tg.note) n.push({ text: tg.note });
+  if (tg.outOfRange) n.push({ level: 'warn', text: tg.outOfRange });
+  const fs = AC.schroederFrequency({ T: mid(Tnow), V });
+  if (fs > 125) n.push({ text: `Schroeder frequency ≈ ${UI.fmt(fs, 0)} Hz. Below this frequency, room modes are more important than the RT60. See the room modes calculator.` });
+  UI.notes($('notes'), n);
+
+  // Catalog table
+  const srcLabel = (c) => c.src === 'model' ? 'Calculated (diffuse field). ' + c.t.assumptions.join('; ') + '.'
+    : c.src === 'measured' ? 'Measured: ' + c.t.source + '. ' + c.t.assumptions.join(' ')
+    : c.src === 'class' ? 'From published αw: ' + c.t.source + '. ' + c.t.assumptions.join('; ') + '.'
+    : c.src === 'data sheet' ? 'Your data sheet values' : 'Your calculated panel';
+  UI.table($('catalog'), ['Treatment', ...OCTS.map((o) => String(o)), 'Source and assumptions'], cands.map((c) => [c.name, ...c.alpha.map((x) => UI.fmt(x)), srcLabel(c)]));
+  $('catalog').querySelectorAll('td:last-child').forEach((td) => { td.style.whiteSpace = 'normal'; td.style.textAlign = 'left'; td.style.minWidth = '16rem'; });
+}
+
+function renderChart() {
+  const s = state;
+  const series = [
+    { name: 'RT60 now', points: OCTS.map((o, b) => [o, s.Tnow[b]]), markers: true },
+    { name: 'Target', points: OCTS.map((o, b) => [o, s.Ttar[b]]), dash: true },
+    { name: s.tg.maxOnly ? 'Maximum' : 'Upper limit', points: OCTS.map((o) => [o, s.tg.tol[o] ? s.tg.T * s.tg.tol[o][1] : NaN]), dash: true, color: 'var(--muted)' },
+    ...(s.tg.maxOnly ? [] : [{ name: 'Lower limit', points: OCTS.map((o) => [o, s.tg.tol[o] ? s.tg.T * s.tg.tol[o][0] : NaN]), dash: true, color: 'var(--muted)' }]),
+  ];
+  const sel = s.top[selected];
+  if (sel) series.push({ name: 'With solution ' + (selected + 1), points: OCTS.map((o, b) => [o, sel.Tafter[b]]), markers: true, color: 'var(--series-2)' });
+  const ymax = Math.max(0.4, ...s.Tnow, ...OCTS.map((o) => (s.tg.tol[o] ? s.tg.T * s.tg.tol[o][1] : 0)));
+  const step = ymax > 4 ? 1 : ymax > 2 ? 0.5 : ymax > 1 ? 0.25 : 0.1;
+  const top = Math.ceil((ymax * 1.05) / step) * step;
+  const ticks = []; for (let y = 0; y <= top + 1e-9; y += step) ticks.push(+y.toFixed(2));
+  UI.chart($('chart'), { series, legend: true, xMin: 100, xMax: 5000, yMin: 0, yMax: top, xTicks: OCTS, xFmt: (x, h) => (h ? UI.fmtHz(x) : UI.freqTickFmt(x)),
+    yTicks: ticks, yFmt: (y, h) => UI.fmt(y, 2) + (h ? ' s' : ''), xLabel: 'Octave band (Hz)', yLabel: 'RT60 (s)', ariaLabel: 'Reverberation time now, target and with the solution' });
+}
+
+function renderOptions() {
+  const s = state;
+  const box = $('options');
+  box.innerHTML = '';
+  if (s.dA.every((x) => x <= 0)) { box.append(UI.el('p', {}, 'The room already has enough absorption for the target in all bands. Do not add more absorption. Diffusion can still help.')); return; }
+  if (!s.top.length) { box.append(UI.el('p', {}, 'No solution was found.')); return; }
+  const tb = UI.el('tbody');
+  s.top.forEach((sol, i) => {
+    const desc = sol.list.map((c, j) => UI.el('div', {}, UI.el('b', {}, UI.fmt(sol.areas[j], 1) + ' m²'), ' ', c.name)).concat(sol.cost ? [UI.el('div', { class: 'derived' }, 'Cost ≈ ' + UI.fmt(sol.cost, 0))] : []);
+    const tr = UI.el('tr', { style: 'cursor:pointer' + (i === selected ? ';background:var(--accent-soft)' : ''), tabindex: '0',
+      onclick: () => { selected = i; renderChart(); renderOptions(); }, onkeydown: (e) => { if (e.key === 'Enter') { selected = i; renderChart(); renderOptions(); } } },
+      UI.el('th', { scope: 'row' }, String(i + 1)), UI.el('td', { style: 'text-align:left;white-space:normal' }, desc),
+      UI.el('td', {}, UI.fmt(sol.cover * 100, 0) + ' %' + (sol.fits ? '' : ' (too much)')),
+      UI.el('td', {}, `${sol.inTol} / ${sol.nReq}`),
+      ...sol.Tafter.map((T) => UI.el('td', {}, UI.fmt(T, 2))));
+    tb.append(tr);
+  });
+  box.append(UI.el('div', { class: 'table-wrap' }, UI.el('table', { class: 'data' },
+    UI.el('thead', {}, UI.el('tr', {}, ['#', 'Solution', 'Coverage', 'Bands in range', ...OCTS.map((o) => 'RT ' + o)].map((h) => UI.el('th', {}, h)))), tb)));
+  // Per-treatment table
+  const groups = {};
+  for (const pt of s.perTreatment) {
+    const g = pt.c.t ? pt.c.t.group : 'My products';
+    (groups[g] = groups[g] || []).push(pt);
+  }
+  box.append(UI.el('h3', {}, 'Each treatment alone'));
+  box.append(UI.el('p', { class: 'derived' }, 'The area of each treatment that gives the best result when it is used alone. Many treatments need a bass absorber as well; see the solutions above.'));
+  for (const [g, list] of Object.entries(groups)) {
+    const rows = list.map((pt) => {
+      const b = pt.best;
+      if (!b) return [pt.c.name, 'Does not help in the bands that need absorption', '–', '–', '–'];
+      return [pt.c.name, `${UI.fmt(b.areas[0], 1)} m²`, UI.fmt(b.cover * 100, 0) + ' %' + (b.fits ? '' : ' (too much)'), `${b.inTol} / ${b.nReq}`, UI.fmt((b.Tafter[2] + b.Tafter[3]) / 2, 2) + ' s'];
+    });
+    const tb = UI.el('div');
+    UI.table(tb, [g, 'Area needed (alone)', 'Coverage', 'Bands in range', 'RT 500–1k'], rows);
+    tb.querySelectorAll('td').forEach((td) => { td.style.whiteSpace = 'normal'; });
+    box.append(tb);
+  }
+  const sel = s.top[selected];
+  if (sel && sel.cover > s.v.cover / 100) box.append(UI.el('ul', { class: 'notes' }, UI.el('li', { class: 'warn' }, `Solution ${selected + 1} needs ${UI.fmt(sel.cover * 100, 0)} % of the wall and ceiling area. This is more than your maximum (${s.v.cover} %). Select a more efficient treatment, or accept a longer RT60.`)));
+}
+
+function renderAdvice() {
+  const s = state;
+  const u = AC.ROOM_USES.find((x) => x.id === s.v.use);
+  const list = [];
+  const ratio = s.Tnow.map((T) => T / s.tg.T);
+  const midR = (ratio[2] + ratio[3]) / 2;
+  if (midR > s.tg.tol[500][1] + 1e-9) list.push(`The room is too reverberant. At 500–1000 Hz the RT60 is ${UI.fmt(midR, 1)} × the target. Add approximately ${UI.fmt(Math.max(0, (s.dA[2] + s.dA[3]) / 2), 1)} m² of absorption area.`);
+  else if (!s.tg.maxOnly && midR < s.tg.tol[500][0]) list.push('The room is already less reverberant than the target. Do not add more absorption. Use diffusion (bookshelves, diffusers) to break up reflections.');
+  else list.push('The RT60 at middle frequencies is in the target range. Treat only for specific problems (echoes, reflections, bass).');
+  if ((s.tg.tol[125] ? ratio[0] > s.tg.tol[125][1] : ratio[0] > 1.2) && ratio[0] > midR * 1.15) list.push('The bass (125 Hz) is too long compared to the middle frequencies. Include bass absorbers: membrane panels, deep porous absorbers with an air gap, or absorbers in the corners. Thin panels and felt do not absorb bass.');
+  if (s.tg.tol[4000] && ratio[5] < s.tg.tol[4000][0]) list.push('The high frequencies are already short. Avoid thin felt and thin fabric panels: they absorb mostly high frequencies and make the room sound dull.');
+  for (const r of u.advice) list.push(r);
+  list.push('Do not cover only one wall. Spread the treatment over at least two surfaces that face different directions.');
+  list.push('If two hard walls are parallel, treat at least one of them to stop flutter echo.');
+  $('advice').innerHTML = '';
+  $('advice').append(UI.el('ol', { class: 'steps' }, list.map((t) => UI.el('li', {}, t))));
+  $('furniture').innerHTML = '';
+  $('furniture').append(UI.el('ul', {}, TREAT.FURNITURE.map((f) => UI.el('li', {}, UI.el('b', {}, f.name + ': '), f.text + (f.examples ? ' ' + f.examples : '')))));
+}
+
+$('pj-add').addEventListener('click', () => {
+  if (!state || !state.top[selected]) return;
+  const s = state, sol = s.top[selected];
+  const u = AC.ROOM_USES.find((x) => x.id === s.v.use);
+  const steps = sol.list.map((c, j) => `Install approximately ${UI.fmt(sol.areas[j], 1)} m² of: ${c.name}.` + (c.t ? ` Position: ${c.t.place}.` : ''));
+  steps.push(...u.advice, 'After installation, measure the RT60 again and compare it with the target.');
+  UI.project.addItem({
+    custom: true, type: 'room', page: 'advisor.html', hash: location.hash,
+    label: `Room treatment plan – ${u.label}`,
+    model: `${s.v.L} × ${s.v.W} × ${s.v.H} m, V = ${UI.fmt(s.V, 1)} m³, target ${UI.fmt(s.tg.T, 2)} s (${s.tg.source})`,
+    visual: null,
+    kpis: [
+      { label: 'RT60 now (500–1k)', value: UI.fmt((s.Tnow[2] + s.Tnow[3]) / 2, 2) + ' s' },
+      { label: 'Target RT60', value: UI.fmt(s.tg.T, 2) + ' s', sub: s.tg.source },
+      { label: 'RT60 with plan (500–1k)', value: UI.fmt((sol.Tafter[2] + sol.Tafter[3]) / 2, 2) + ' s' },
+    ],
+    rows: [['Room', `${s.v.L} × ${s.v.W} × ${s.v.H} m`], ['Use', u.label], ['Room now', s.v.now === 'measured' ? 'Measured RT60' : 'Assumed: ' + (({ bare: 'empty, hard', hard: 'furnished, hard floor', soft: 'furnished, soft' })[s.v.now])],
+      ...sol.list.map((c, j) => [`Treatment ${j + 1}`, `${UI.fmt(sol.areas[j], 1)} m² – ${c.name}`]), ['Coverage of walls and ceiling', UI.fmt(sol.cover * 100, 0) + ' %']],
+    warnings: [{ level: 'NOTE', text: 'This plan is a prediction. Measure the room after the work.' }],
+    steps,
+    checks: ['RT60 measured after installation: 125 ___ 250 ___ 500 ___ 1k ___ 2k ___ 4k ___ s'],
+    chart: { series: [{ name: 'Now', points: OCTS.map((o, b) => [o, s.Tnow[b]]) }, { name: 'Target', points: OCTS.map((o, b) => [o, s.Ttar[b]]) }, { name: 'With plan', points: OCTS.map((o, b) => [o, sol.Tafter[b]]) }], yLabel: 'RT60 (s)', xMin: 100, xMax: 5000 },
+    table: { headers: ['Octave (Hz)', ...OCTS.map(String)], rows: [['RT60 now (s)', ...s.Tnow.map((x) => UI.fmt(x, 2))], ['Target (s)', ...s.Ttar.map((x) => UI.fmt(x, 2))], ['With plan (s)', ...sol.Tafter.map((x) => UI.fmt(x, 2))]] },
+    inputs: [],
+    notes: s.tg.note ? [s.tg.note] : [],
+    panel: { w: 0, h: 0, qty: 1 },
+    quantities: { area: 0, absorber: [] },
+  });
+  $('pjMsg').innerHTML = 'Added. <a href="project.html">Open the project document</a>.';
+});
+
+renderProducts();
+form.update();
+</script>
+</body>
+</html>
