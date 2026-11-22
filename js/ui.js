@@ -1,0 +1,494 @@
+/*
+ * Acoustic Calculator – shared user-interface helpers (no dependencies).
+ * Exposes the global "UI".
+ */
+(function (root) {
+  'use strict';
+
+  const PAGES = [
+    { href: 'index.html', label: 'Home' },
+    { href: 'porous.html', label: 'Porous' },
+    { href: 'perforated.html', label: 'Perforated' },
+    { href: 'slotted.html', label: 'Slotted' },
+    { href: 'microperforated.html', label: 'Microperforated' },
+    { href: 'membrane.html', label: 'Membrane' },
+    { href: 'resonance.html', label: 'Resonance' },
+    { href: 'flow-resistivity.html', label: 'Flow resistivity' },
+    { href: 'ratings.html', label: 'NRC / αw' },
+    { href: 'reverberation.html', label: 'Reverberation' },
+    { href: 'room-modes.html', label: 'Room modes' },
+    { href: 'sound-in-air.html', label: 'Sound in air' },
+  ];
+
+  const el = (tag, attrs = {}, ...children) => {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === undefined || v === null || v === false) continue;
+      if (k === 'class') e.className = v;
+      else if (k === 'html') e.innerHTML = v;
+      else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, v === true ? '' : v);
+    }
+    for (const c of children.flat()) {
+      if (c === null || c === undefined || c === false) continue;
+      e.append(c.nodeType ? c : document.createTextNode(String(c)));
+    }
+    return e;
+  };
+
+  /* ---------------- theme + header ---------------- */
+  function storageGet(k) {
+    try {
+      return localStorage.getItem(k);
+    } catch (_) {
+      return null;
+    }
+  }
+  function storageSet(k, v) {
+    try {
+      localStorage.setItem(k, v);
+    } catch (_) {
+      /* storage blocked: ignore */
+    }
+  }
+  const savedTheme = storageGet('ac-theme');
+  if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
+
+  function header() {
+    const here = location.pathname.split('/').pop() || 'index.html';
+    const nav = el(
+      'nav',
+      { class: 'site-nav', id: 'site-nav', 'aria-label': 'Calculators' },
+      PAGES.map((p) => el('a', { href: p.href, 'aria-current': p.href === here ? 'page' : null }, p.label))
+    );
+    const toggle = el(
+      'button',
+      {
+        class: 'nav-toggle',
+        'aria-controls': 'site-nav',
+        'aria-expanded': 'false',
+        onclick: (e) => {
+          const open = nav.classList.toggle('open');
+          e.currentTarget.setAttribute('aria-expanded', String(open));
+        },
+      },
+      'Menu'
+    );
+    const theme = el(
+      'button',
+      {
+        class: 'theme-toggle',
+        title: 'Change colour theme',
+        onclick: () => {
+          const cur =
+            document.documentElement.getAttribute('data-theme') ||
+            (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          const next = cur === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', next);
+          storageSet('ac-theme', next);
+          document.dispatchEvent(new Event('themechange'));
+        },
+      },
+      'Theme'
+    );
+    const h = el(
+      'header',
+      { class: 'site-header' },
+      el('div', { class: 'inner' }, el('a', { class: 'brand', href: 'index.html' }, 'Acoustic ', el('span', {}, 'Calculator')), toggle, nav, theme)
+    );
+    document.body.prepend(h);
+    const foot = el(
+      'footer',
+      { class: 'site-footer' },
+      'The results are predictions from published models. They are not measurements. Make sure that you read the limits on each page.'
+    );
+    document.body.append(foot);
+  }
+
+  /* ---------------- number formatting ---------------- */
+  function fmt(v, digits = 2) {
+    if (v === null || v === undefined || !Number.isFinite(v)) return '–';
+    return v.toLocaleString('en-GB', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  }
+  function fmtSig(v, sig = 3) {
+    if (!Number.isFinite(v)) return '–';
+    if (v === 0) return '0';
+    const d = Math.max(0, sig - 1 - Math.floor(Math.log10(Math.abs(v))));
+    return fmt(v, Math.min(d, 6));
+  }
+  function fmtHz(f) {
+    if (f >= 1000) return (f / 1000).toLocaleString('en-GB', { maximumFractionDigits: 2 }) + ' kHz';
+    return Math.round(f).toLocaleString('en-GB') + ' Hz';
+  }
+
+  /* ---------------- URL state ---------------- */
+  function readUrlState() {
+    const out = {};
+    const h = location.hash.replace(/^#/, '');
+    if (!h) return out;
+    for (const part of h.split('&')) {
+      const [k, v] = part.split('=');
+      if (k) out[decodeURIComponent(k)] = decodeURIComponent(v || '');
+    }
+    return out;
+  }
+  function writeUrlState(values) {
+    const s = Object.entries(values)
+      .map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(typeof v === 'boolean' ? (v ? 1 : 0) : v))
+      .join('&');
+    try {
+      history.replaceState(null, '', '#' + s);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  /* ---------------- form builder ---------------- */
+  /**
+   * fields: [{ group } | { id, label, unit, value, min, max, step, type, options, help, showIf }]
+   * Returns { values(), setValue(id, v), valid() }.
+   */
+  function form(container, fields, onChange, opts = {}) {
+    const state = opts.urlState === false ? {} : readUrlState();
+    const inputs = {};
+    const rows = {};
+    let fs = null;
+    const defs = fields.filter((f) => f.id);
+    for (const f of fields) {
+      if (f.group) {
+        fs = el('fieldset', {}, el('legend', {}, f.group));
+        container.append(fs);
+        continue;
+      }
+      if (!fs) {
+        fs = el('fieldset');
+        container.append(fs);
+      }
+      const id = 'f-' + f.id;
+      let input;
+      let row;
+      const init = state[f.id] !== undefined ? state[f.id] : f.value;
+      if (f.type === 'select') {
+        input = el('select', { id }, f.options.map((o) => el('option', { value: o.value }, o.label)));
+        input.value = String(init);
+        if (input.selectedIndex < 0) input.value = String(f.value);
+        row = el('div', { class: 'field' }, el('label', { for: id }, f.label), input);
+      } else if (f.type === 'checkbox') {
+        input = el('input', { id, type: 'checkbox' });
+        input.checked = init === true || init === '1' || init === 'true';
+        row = el('div', { class: 'field check' }, input, el('label', { for: id }, f.label));
+      } else {
+        input = el('input', {
+          id,
+          type: 'number',
+          inputmode: 'decimal',
+          step: f.step ?? 'any',
+          min: f.min,
+          max: f.max,
+        });
+        input.value = init;
+        const wrap = el('div', { class: 'input-wrap' + (f.unit ? ' has-unit' : '') }, input, f.unit ? el('span', { class: 'unit' }, f.unit) : null);
+        row = el('div', { class: 'field' }, el('label', { for: id }, f.label), wrap);
+      }
+      if (f.help) row.append(el('div', { class: 'help' }, f.help));
+      fs.append(row);
+      inputs[f.id] = input;
+      rows[f.id] = row;
+      input.addEventListener('input', update);
+      input.addEventListener('change', update);
+    }
+
+    function rawValues() {
+      const v = {};
+      for (const f of defs) {
+        const i = inputs[f.id];
+        if (f.type === 'select') v[f.id] = i.value;
+        else if (f.type === 'checkbox') v[f.id] = i.checked;
+        else v[f.id] = i.value === '' ? NaN : Number(i.value);
+      }
+      return v;
+    }
+
+    function validate(v) {
+      let ok = true;
+      for (const f of defs) {
+        const row = rows[f.id];
+        const visible = !f.showIf || f.showIf(v);
+        row.style.display = visible ? '' : 'none';
+        const old = row.querySelector('.err');
+        if (old) old.remove();
+        row.classList.remove('invalid');
+        if (!visible || f.type === 'select' || f.type === 'checkbox') continue;
+        const x = v[f.id];
+        let msg = null;
+        if (!Number.isFinite(x)) msg = 'Type a number.';
+        else if (f.min !== undefined && (f.exclusiveMin ? x <= f.min : x < f.min))
+          msg = `Use a value ${f.exclusiveMin ? 'more than' : 'of'} ${f.min}${f.exclusiveMin ? '' : ' or more'}.`;
+        else if (f.max !== undefined && x > f.max) msg = `Use a value of ${f.max} or less.`;
+        if (msg) {
+          ok = false;
+          row.classList.add('invalid');
+          row.append(el('div', { class: 'err' }, msg));
+        }
+      }
+      return ok;
+    }
+
+    function update() {
+      const v = rawValues();
+      const ok = validate(v);
+      if (opts.urlState !== false) writeUrlState(v);
+      onChange(v, ok);
+    }
+
+    update();
+    return {
+      values: rawValues,
+      update,
+      setValue(id, val) {
+        const i = inputs[id];
+        if (i.type === 'checkbox') i.checked = !!val;
+        else i.value = val;
+      },
+    };
+  }
+
+  /* ---------------- chart ---------------- */
+  const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const sv = (tag, attrs = {}) => {
+    const e = document.createElementNS(SVGNS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    return e;
+  };
+
+  /**
+   * Line chart with log or linear x axis.
+   * opts: { series:[{name, points:[[x,y]], color, dash}], xLog, xMin, xMax, yMin, yMax,
+   *         xLabel, yLabel, xTicks, yTicks, yFmt, xFmt, stems }
+   */
+  function chart(container, opts) {
+    container.innerHTML = '';
+    container.classList.add('chart');
+    const W = 720;
+    const H = opts.height || 360;
+    const m = { l: 52, r: 14, t: 12, b: 44 };
+    const pw = W - m.l - m.r;
+    const ph = H - m.t - m.b;
+    const xLog = opts.xLog !== false;
+    const tx = (x) =>
+      m.l + (xLog ? Math.log(x / opts.xMin) / Math.log(opts.xMax / opts.xMin) : (x - opts.xMin) / (opts.xMax - opts.xMin)) * pw;
+    const ty = (y) => m.t + (1 - (y - opts.yMin) / (opts.yMax - opts.yMin)) * ph;
+    const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': opts.ariaLabel || 'Chart' });
+    const yTicks = opts.yTicks || [];
+    for (const y of yTicks) {
+      svg.append(sv('line', { class: 'gridline', x1: m.l, x2: m.l + pw, y1: ty(y), y2: ty(y) }));
+      const t = sv('text', { x: m.l - 6, y: ty(y) + 4, 'text-anchor': 'end' });
+      t.textContent = opts.yFmt ? opts.yFmt(y) : y;
+      svg.append(t);
+    }
+    for (const x of opts.xTicks || []) {
+      svg.append(sv('line', { class: 'gridline', x1: tx(x), x2: tx(x), y1: m.t, y2: m.t + ph }));
+      const t = sv('text', { x: tx(x), y: m.t + ph + 16, 'text-anchor': 'middle' });
+      t.textContent = opts.xFmt ? opts.xFmt(x) : x;
+      svg.append(t);
+    }
+    svg.append(sv('line', { class: 'axis', x1: m.l, x2: m.l + pw, y1: m.t + ph, y2: m.t + ph }));
+    svg.append(sv('line', { class: 'axis', x1: m.l, x2: m.l, y1: m.t, y2: m.t + ph }));
+    const xt = sv('text', { class: 'axis-title', x: m.l + pw / 2, y: H - 6, 'text-anchor': 'middle' });
+    xt.textContent = opts.xLabel || '';
+    svg.append(xt);
+    const yt = sv('text', { class: 'axis-title', x: 14, y: m.t + ph / 2, 'text-anchor': 'middle', transform: `rotate(-90 14 ${m.t + ph / 2})` });
+    yt.textContent = opts.yLabel || '';
+    svg.append(yt);
+
+    const clipId = 'clip' + Math.random().toString(36).slice(2);
+    const defs = sv('defs');
+    const cp = sv('clipPath', { id: clipId });
+    cp.append(sv('rect', { x: m.l, y: m.t - 2, width: pw, height: ph + 4 }));
+    defs.append(cp);
+    svg.append(defs);
+    const g = sv('g', { 'clip-path': `url(#${clipId})` });
+    svg.append(g);
+
+    opts.series.forEach((s, i) => {
+      const color = s.color || cssVar(`--series-${(i % 5) + 1}`);
+      if (opts.stems || s.stems) {
+        for (const [x, y] of s.points) {
+          g.append(sv('line', { x1: tx(x), x2: tx(x), y1: ty(opts.yMin), y2: ty(y), stroke: color, 'stroke-width': s.width || 2 }));
+        }
+        return;
+      }
+      if (s.markers) {
+        for (const [x, y] of s.points) g.append(sv('circle', { cx: tx(x), cy: ty(y), r: 3.5, fill: color }));
+      }
+      const d = s.points
+        .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y))
+        .map(([x, y], j) => `${j ? 'L' : 'M'}${tx(x).toFixed(1)},${ty(y).toFixed(1)}`)
+        .join('');
+      const p = sv('path', { class: 'series', d, stroke: color });
+      if (s.dash) p.setAttribute('stroke-dasharray', '6 4');
+      if (s.width) p.setAttribute('stroke-width', s.width);
+      g.append(p);
+    });
+
+    // Legend
+    if (opts.series.length > 1 || opts.legend) {
+      const lg = el('div', { class: 'legend' });
+      opts.series.forEach((s, i) => {
+        const color = s.color || cssVar(`--series-${(i % 5) + 1}`);
+        lg.append(el('span', {}, el('i', { class: s.dash ? 'dash' : '', style: `border-top-color:${color}` }), s.name));
+      });
+      container.append(lg);
+    }
+    container.append(svg);
+
+    // Hover read-out
+    if (!opts.stems && opts.series.length) {
+      const tip = el('div', { class: 'chart-tip' });
+      container.append(tip);
+      const hl = sv('line', { class: 'hover-line', y1: m.t, y2: m.t + ph, x1: 0, x2: 0, visibility: 'hidden' });
+      svg.append(hl);
+      const move = (ev) => {
+        const r = svg.getBoundingClientRect();
+        const px = ((ev.clientX - r.left) / r.width) * W;
+        if (px < m.l || px > m.l + pw) {
+          tip.style.display = 'none';
+          hl.setAttribute('visibility', 'hidden');
+          return;
+        }
+        const frac = (px - m.l) / pw;
+        const x = xLog ? opts.xMin * Math.pow(opts.xMax / opts.xMin, frac) : opts.xMin + frac * (opts.xMax - opts.xMin);
+        const lines = [];
+        opts.series.forEach((s) => {
+          let best = null;
+          for (const pt of s.points) if (!best || Math.abs(Math.log(pt[0] / x)) < Math.abs(Math.log(best[0] / x))) best = pt;
+          if (best) lines.push(`${s.name}: ${opts.yFmt ? opts.yFmt(best[1], true) : fmt(best[1])}`);
+        });
+        hl.setAttribute('x1', px);
+        hl.setAttribute('x2', px);
+        hl.setAttribute('visibility', 'visible');
+        tip.innerHTML = '';
+        tip.append(el('div', {}, el('b', {}, opts.xFmt ? opts.xFmt(x, true) : fmtHz(x))));
+        lines.forEach((l) => tip.append(el('div', {}, l)));
+        tip.style.display = 'block';
+        const cr = container.getBoundingClientRect();
+        let left = ev.clientX - cr.left + 12;
+        if (left + tip.offsetWidth > cr.width) left = ev.clientX - cr.left - tip.offsetWidth - 12;
+        tip.style.left = Math.max(0, left) + 'px';
+        tip.style.top = ev.clientY - cr.top - 10 + 'px';
+      };
+      svg.addEventListener('pointermove', move);
+      svg.addEventListener('pointerleave', () => {
+        tip.style.display = 'none';
+        hl.setAttribute('visibility', 'hidden');
+      });
+    }
+  }
+
+  const FREQ_TICKS = [31.5, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+  const freqTickFmt = (f) => (f >= 1000 ? f / 1000 + 'k' : String(f));
+
+  /* ---------------- table / csv / notes ---------------- */
+  function table(container, headers, rows, opts = {}) {
+    container.innerHTML = '';
+    const t = el(
+      'table',
+      { class: 'data' },
+      el('thead', {}, el('tr', {}, headers.map((h) => el('th', { scope: 'col' }, h)))),
+      el(
+        'tbody',
+        {},
+        rows.map((r) =>
+          el(
+            'tr',
+            {},
+            r.map((c, i) => {
+              const cls = opts.negClass && typeof c === 'object' && c && c.neg ? 'neg' : null;
+              return el(i === 0 ? 'th' : 'td', { scope: i === 0 ? 'row' : null, class: cls }, c && typeof c === 'object' ? c.text : c);
+            })
+          )
+        )
+      )
+    );
+    container.append(el('div', { class: 'table-wrap' }, t));
+  }
+
+  function downloadCsv(filename, headers, rows) {
+    const esc = (v) => {
+      const s = String(v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const csv = [headers, ...rows].map((r) => r.map(esc).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = el('a', { href: URL.createObjectURL(blob), download: filename });
+    document.body.append(a);
+    a.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    }, 0);
+  }
+
+  function notes(container, list) {
+    container.innerHTML = '';
+    if (!list.length) return;
+    container.append(el('ul', { class: 'notes' }, list.map((n) => el('li', { class: n.level || '' }, n.text))));
+  }
+
+  function kpis(container, items) {
+    container.innerHTML = '';
+    container.classList.add('kpis');
+    for (const k of items) {
+      container.append(
+        el('div', { class: 'kpi' }, el('div', { class: 'label' }, k.label), el('div', { class: 'value' }, k.value), k.sub ? el('div', { class: 'sub' }, k.sub) : null)
+      );
+    }
+  }
+
+  function copyLink(btn) {
+    btn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(location.href);
+        const t = btn.textContent;
+        btn.textContent = 'Link copied';
+        setTimeout(() => (btn.textContent = t), 1500);
+      } catch (_) {
+        prompt('Copy this link:', location.href);
+      }
+    });
+  }
+
+  /* Shared panel results for the reverberation page */
+  function savePanelResult(name, octaveAlpha) {
+    storageSet('ac-last-panel', JSON.stringify({ name, octaveAlpha, saved: new Date().toISOString() }));
+  }
+  function loadPanelResult() {
+    try {
+      return JSON.parse(storageGet('ac-last-panel'));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', header);
+
+  root.UI = {
+    el,
+    fmt,
+    fmtSig,
+    fmtHz,
+    form,
+    chart,
+    FREQ_TICKS,
+    freqTickFmt,
+    table,
+    downloadCsv,
+    notes,
+    kpis,
+    copyLink,
+    savePanelResult,
+    loadPanelResult,
+    cssVar,
+  };
+})(this);

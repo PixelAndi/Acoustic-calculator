@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slotted Panel Calculator</title>
+<meta name="description" content="Calculate the sound absorption of a slotted panel or a slatted wall over a cavity with porous absorber.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/absorber.js"></script>
+</head>
+<body>
+<main>
+  <h1>Slotted panel absorber</h1>
+  <p class="lead">This calculator gives the sound absorption of a panel with long parallel slots in front of a cavity. Use it also for a wall of slats with gaps between them.</p>
+
+  <div id="calc"></div>
+
+  <section class="doc">
+    <h2>How to use</h2>
+    <ol>
+      <li>Type the panel (or slat) thickness.</li>
+      <li>Type the slot width. This is the gap between two slats.</li>
+      <li>Type the slot pitch. This is the distance from the centre of one slot to the centre of the next slot. For slats, the pitch is the slat width plus the gap.</li>
+      <li>Type the cavity depth and the porous absorber data.</li>
+      <li>Read the resonance frequency and the curve.</li>
+    </ol>
+
+    <h2>Description</h2>
+    <p>A slotted panel works as a Helmholtz resonator, as a perforated panel does. The air in the slots is the mass. The air in the cavity is the spring. The porous absorber in the cavity removes the energy at resonance.</p>
+    <p>Narrow slots and a deep cavity give a low resonance frequency. Wide slots give a high open area and a higher frequency.</p>
+
+    <h2>Method</h2>
+    <div class="formula">Open area:       ε = w / pitch
+End correction:  δ = (1/π) ln(1 / sin(πε/2))          (Smits &amp; Kosten)
+Slot air:        Z_s = (j ω ρ₀ t / ε) [1 − tan(y) / y]⁻¹,   y = (w/2) √(ωρ₀/η) e^(−jπ/4)
+Panel:           Z_p = Z_s + j ω ρ₀ (2 δ w) / ε
+Surface:         Z = Z_p + Z_cavity
+
+Resonance (empty cavity, depth d):  f₀ = (c / 2π) √(ε / (t′ d)),   t′ = t + 2 δ w</div>
+    <p>Z<sub>s</sub> is the exact impedance of air in a narrow slit. It includes the viscous loss in the slot. At low frequency it gives the known flow resistance 12ηt/(εw²). The cavity uses the same layer method as the porous absorber page.</p>
+    <p><b>Note about the reference spreadsheet.</b> The slotted-panel sheet of "Porous Absorber Calculator V1.60" adds a term −jρ₀c₀·cot(k·t′) to the panel impedance. This term is the impedance of a closed tube. It is not part of a slot. It moves the peak to a much higher frequency than the Helmholtz formula gives. This calculator does not use that term. Thus its results are different from the sheet.</p>
+
+    <h2>Limits</h2>
+    <ul>
+      <li>The panel is rigid and the slots are long compared to their width.</li>
+      <li>The end correction does not include the viscous loss at the ends of the slot. For slots of a few millimetres this loss is small.</li>
+      <li>The model is for plane waves in the cavity. The calculation is for a panel of infinite size.</li>
+      <li>The resonance formula is for a cavity that is much smaller than the wavelength. Use the curve for the accurate peak frequency.</li>
+    </ul>
+    <p class="refs">References: T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapter 6. The slit impedance is the exact solution for oscillating viscous flow between two parallel plates (the planar form of Maa's model for round holes).</p>
+  </section>
+</main>
+<script>
+AbsorberPage.init(document.getElementById('calc'), {
+  name: 'Slotted',
+  file: 'slotted-panel.csv',
+  cavityOption: true,
+  fields: [
+    { group: 'Panel' },
+    { id: 't', label: 'Panel thickness', unit: 'mm', value: 16, min: 0.1, max: 200 },
+    { id: 'w', label: 'Slot width', unit: 'mm', value: 5, min: 0.05, max: 500 },
+    { id: 'pitch', label: 'Slot pitch (centre to centre)', unit: 'mm', value: 50, min: 0.1, max: 2000 },
+    ...AbsorberPage.cavityFields,
+  ],
+  build(v, a) {
+    if (v.pitch <= v.w) return { error: 'The slot pitch must be more than the slot width.' };
+    const fac = AC.slottedFacing({ t: v.t / 1000, w: v.w / 1000, pitch: v.pitch / 1000 });
+    const cav = AbsorberPage.cavity(v);
+    if (cav.error) return cav;
+    const f0 = AC.helmholtzFrequency({ eps: fac.eps, tEff: fac.tEff, depth: v.depth / 1000, c: a.c });
+    const notes = [];
+    if (fac.eps > 0.3) notes.push({ level: 'warn', text: `The open area is ${UI.fmt(fac.eps * 100, 1)} %. With a large open area the panel has little effect.` });
+    return {
+      construction: { layers: cav.layers, facing: fac },
+      parts: [{ kind: 'facing', label: 'Slats', mm: v.t }, ...cav.parts],
+      short: `${v.t} mm, ${v.w} mm slots @ ${v.pitch} mm, ${v.depth} mm cavity`,
+      info: [
+        ['Open area ε', UI.fmt(fac.eps * 100, 2) + ' %'],
+        ['End correction δ', UI.fmt(fac.delta, 3)],
+        ["Effective thickness t′", UI.fmt(fac.tEff * 1000, 2) + ' mm'],
+      ],
+      resonance: { label: 'Resonance f₀', f: f0, sub: 'empty cavity, formula estimate' },
+      notes,
+    };
+  },
+});
+</script>
+</body>
+</html>

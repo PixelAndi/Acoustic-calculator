@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flow Resistivity Calculator</title>
+<meta name="description" content="Calculate the airflow resistivity of a porous absorber from a measurement or estimate it from fibre diameter and porosity.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/ui.js"></script>
+</head>
+<body>
+<main>
+  <h1>Flow resistivity</h1>
+  <p class="lead">Flow resistivity (σ) is the most important property of a porous absorber. Use this tool to calculate σ from a measurement, or to estimate σ from the fibre diameter and the porosity.</p>
+
+  <div class="calc">
+    <div class="card"><h2>Inputs</h2><div id="form"></div></div>
+    <div>
+      <div class="card"><h2>Results</h2><div id="kpis"></div><div id="table"></div><div id="notes"></div>
+        <div class="btn-row"><button class="btn primary" id="use" type="button">Use in porous absorber calculator</button></div>
+      </div>
+    </div>
+  </div>
+
+  <section class="doc">
+    <h2>How to use</h2>
+    <ol>
+      <li>Select the method.</li>
+      <li>For a measurement, type the pressure difference, the air velocity and the sample thickness.</li>
+      <li>For an estimate, type the fibre diameter and the porosity (or the densities).</li>
+      <li>Click "Use in porous absorber calculator" to send the value to that page.</li>
+    </ol>
+
+    <h2>Description</h2>
+    <p>Air can flow through a porous material, but the material resists the flow. Flow resistivity is the pressure difference across a sample, divided by the air velocity and the sample thickness. The unit is Pa·s/m² (also written rayl/m or N·s/m⁴).</p>
+    <p>A measured value is always better than an estimate. ISO 9053 gives the measurement method. Many manufacturers give σ on the data sheet.</p>
+    <p>Porosity is the volume of air in the material divided by the total volume. For mineral wool it is usually between 0.92 and 0.99. If you know the bulk density of the product and the density of the fibre material, porosity = 1 − (bulk density / fibre density).</p>
+
+    <h2>Method</h2>
+    <div class="formula">Measurement:            σ = Δp / (U d)
+Bies &amp; Hansen:          σ = 27.3 (ρ_m/ρ_f)^1.53 η / d_f²
+Parallel to fibres:     σ = 3.94 η (1−ε)^1.413 [1 + 27 (1−ε)³] / (a² ε)
+Perpendicular (a 6–10 µm):   σ = 10.56 η (1−ε)^1.531 / (a² ε³)
+Perpendicular (a 20–30 µm):  σ = 6.8 η (1−ε)^1.296 / (a² ε³)
+Random orientation:     σ = (4η/a²) [0.55 (1−ε)^(4/3) / ε + √2 (1−ε)² / ε³]
+Random, glass fibre:    σ = 3.2 η (1−ε)^1.42 / a²
+Random, mineral fibre:  σ = 4.4 η (1−ε)^1.59 / a²</div>
+    <p>d_f is the fibre diameter, a is the fibre radius, ε is the porosity and η is the dynamic viscosity of air. The fibre formulas are from Cox &amp; D'Antonio (table 5.1, after Mechel and Tarnow). They were checked against the "Porous Absorber Calculator V1.60" spreadsheet. The spreadsheet gives 7 075 for random orientation because it rounds the exponent 4/3 to 1.333. This tool uses 4/3 and gives 7 065.</p>
+
+    <h2>Limits</h2>
+    <ul>
+      <li>The estimates are for fibrous materials only. Do not use them for foam.</li>
+      <li>The fibre diameter in a real product is not constant. The estimate can be wrong by a factor of 2 or more. Use a measured value for final design.</li>
+      <li>The two "perpendicular" formulas are for fibre radii of 6–10 µm and 20–30 µm. The tool uses the first formula up to a radius of 15 µm and the second formula above 15 µm. Between 10 µm and 20 µm, no formula has a stated range.</li>
+      <li>Binder, facings and compression change the flow resistivity.</li>
+    </ul>
+    <p class="refs">References: T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapter 5. D. A. Bies &amp; C. H. Hansen, Applied Acoustics 13 (1980) 357–391. ISO 9053, determination of airflow resistance.</p>
+  </section>
+</main>
+<script>
+const K = document.getElementById('kpis'), T = document.getElementById('table'), N = document.getElementById('notes');
+let lastSigma = null;
+document.getElementById('use').addEventListener('click', () => {
+  if (lastSigma) location.href = 'porous.html#sigma=' + Math.round(lastSigma);
+});
+UI.form(document.getElementById('form'), [
+  { group: 'Method' },
+  { id: 'method', label: 'Method', type: 'select', value: 'fibre', options: [
+    { value: 'meas', label: 'Measurement (Δp, U, d)' },
+    { value: 'fibre', label: 'Estimate from fibres' }] },
+  { group: 'Measurement' },
+  { id: 'dp', label: 'Pressure difference Δp', unit: 'Pa', value: 10, min: 0, exclusiveMin: true, showIf: (v) => v.method === 'meas' },
+  { id: 'U', label: 'Air velocity U', unit: 'mm/s', value: 0.5, min: 0, exclusiveMin: true, showIf: (v) => v.method === 'meas',
+    help: 'Use a low velocity (0.5 mm/s in ISO 9053).' },
+  { id: 'd', label: 'Sample thickness d', unit: 'mm', value: 50, min: 0, exclusiveMin: true, showIf: (v) => v.method === 'meas' },
+  { group: 'Fibres' },
+  { id: 'df', label: 'Mean fibre diameter', unit: 'µm', value: 7.5, min: 0.1, max: 200, showIf: (v) => v.method === 'fibre' },
+  { id: 'porMode', label: 'Porosity from', type: 'select', value: 'por', options: [
+    { value: 'por', label: 'Porosity value' }, { value: 'dens', label: 'Densities' }], showIf: (v) => v.method === 'fibre' },
+  { id: 'por', label: 'Porosity ε', unit: '%', value: 99, min: 1, max: 99.99, showIf: (v) => v.method === 'fibre' && v.porMode === 'por' },
+  { id: 'rhoM', label: 'Bulk density of product', unit: 'kg/m³', value: 25, min: 0.1, showIf: (v) => v.method === 'fibre' && v.porMode === 'dens' },
+  { id: 'rhoF', label: 'Density of fibre material', unit: 'kg/m³', value: 2500, min: 100, showIf: (v) => v.method === 'fibre' && v.porMode === 'dens',
+    help: 'Glass is approximately 2 500 kg/m³. Stone (rock) fibre is approximately 2 600–2 900 kg/m³.' },
+  { group: 'Air' },
+  { id: 'temp', label: 'Air temperature', unit: '°C', value: 20, min: -20, max: 50, showIf: (v) => v.method === 'fibre' },
+], (v, ok) => {
+  T.innerHTML = '';
+  if (!ok) { UI.notes(N, [{ level: 'error', text: 'One or more inputs are not correct. Correct the inputs that show in red.' }]); return; }
+  const n = [];
+  if (v.method === 'meas') {
+    const s = AC.flowResistivityFromMeasurement({ dp: v.dp, U: v.U / 1000, d: v.d / 1000 });
+    lastSigma = s;
+    UI.kpis(K, [
+      { label: 'Flow resistivity σ', value: UI.fmt(s, 0), sub: 'Pa·s/m²' },
+      { label: 'Flow resistance of sample', value: UI.fmt(v.dp / (v.U / 1000), 0), sub: 'Pa·s/m (σ × d)' },
+    ]);
+    if (v.U > 5) n.push({ level: 'warn', text: 'The air velocity is high. At high velocity the result is not linear. Use a velocity of a few mm/s or less.' });
+    UI.notes(N, n);
+    return;
+  }
+  const a = AC.air(v.temp);
+  let eps;
+  if (v.porMode === 'dens') {
+    if (v.rhoM >= v.rhoF) { UI.notes(N, [{ level: 'error', text: 'The bulk density must be less than the fibre density.' }]); return; }
+    eps = 1 - v.rhoM / v.rhoF;
+  } else eps = v.por / 100;
+  const r = v.df / 2 * 1e-6;
+  const q = { r, eps, eta: a.eta };
+  const F = AC.fibreFlowResistivity;
+  const bh = AC.biesHansen({ densityRatio: 1 - eps, d: v.df * 1e-6, eta: a.eta });
+  const rows = [
+    ['Bies & Hansen', bh, 'Glass and mineral fibre, random orientation'],
+    ['Random orientation, equal radius', F.random(q), 'Fibres of one radius'],
+    ['Random orientation and radius – glass fibre', F.glass(q), 'Mean radius'],
+    ['Random orientation and radius – mineral fibre', F.mineral(q), 'Mean radius'],
+    ['Flow parallel to fibres', F.parallel(q), 'Layered material, flow along the layers'],
+    ['Flow perpendicular to fibres', F.perpendicular(q), r <= 15e-6 ? 'Formula for radius 6–10 µm' : 'Formula for radius 20–30 µm'],
+  ];
+  lastSigma = F.glass(q);
+  UI.kpis(K, [
+    { label: 'Porosity ε', value: UI.fmt(eps * 100, 2) + ' %' },
+    { label: 'Fibre radius a', value: UI.fmt(r * 1e6, 2) + ' µm' },
+    { label: 'Typical estimate (glass fibre)', value: UI.fmt(F.glass(q), 0), sub: 'Pa·s/m²' },
+  ]);
+  UI.table(T, ['Method', 'σ (Pa·s/m²)', 'Use for'], rows.map((x) => [x[0], UI.fmt(x[1], 0), x[2]]));
+  const rUm = r * 1e6;
+  if ((rUm > 10 && rUm < 20) || rUm < 6 || rUm > 30) n.push({ level: 'warn', text: `The fibre radius (${UI.fmt(rUm, 1)} µm) is outside the stated ranges of the "perpendicular" formulas (6–10 µm and 20–30 µm).` });
+  if (eps < 0.9) n.push({ level: 'warn', text: 'The porosity is low for a fibrous absorber. Check the input.' });
+  n.push({ text: '"Use in porous absorber calculator" sends the glass-fibre estimate. Select the value that is correct for your material, and type it on the porous page if it is different.' });
+  UI.notes(N, n);
+});
+</script>
+</body>
+</html>

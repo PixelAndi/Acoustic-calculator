@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reverberation Time Calculator</title>
+<meta name="description" content="Calculate the reverberation time (RT60) of a room before and after you add absorber panels, with the Sabine or Eyring formula.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/ui.js"></script>
+</head>
+<body>
+<main>
+  <h1>Reverberation time</h1>
+  <p class="lead">Find the reverberation time (RT60) of a room. Then add absorber panels and see the new reverberation time in each octave band.</p>
+
+  <div class="calc">
+    <div class="card">
+      <h2>Inputs</h2>
+      <div id="form"></div>
+      <h3>Values per octave band</h3>
+      <div id="bands"></div>
+      <div class="btn-row"><button class="btn" id="load" type="button">Load last panel result</button></div>
+    </div>
+    <div>
+      <div class="card"><h2>Results</h2><div id="kpis"></div><div id="chart"></div><div id="notes"></div></div>
+      <div class="card"><h2>Results per band</h2><div id="table"></div></div>
+    </div>
+  </div>
+
+  <section class="doc">
+    <h2>How to use</h2>
+    <ol>
+      <li>Type the length, width and height of the room.</li>
+      <li>Select how you know the room now: the mean absorption coefficient, or a measured reverberation time.</li>
+      <li>Type these values for each octave band.</li>
+      <li>Type the total area of the panels and their absorption coefficients. To use a result from a panel page, click "Save result for other pages" on that page. Then click "Load last panel result" here.</li>
+      <li>Read the reverberation time before and after.</li>
+    </ol>
+
+    <h2>Description</h2>
+    <p>Reverberation time (RT60) is the time for the sound level to decrease by 60 dB after the source stops. A long RT60 makes speech difficult to understand. Absorbers decrease the RT60.</p>
+    <p>The equivalent absorption area A is the sum of (surface area × absorption coefficient) for all surfaces. The unit is m².</p>
+
+    <h2>Method</h2>
+    <div class="formula">Sabine:   T = 55.26 V / (c A)
+Eyring:   T = 55.26 V / (−c S ln(1 − ᾱ)),   ᾱ = A / S
+From a measured T:  A = 55.26 V / (c T)
+
+After:    A′ = A − S_p ᾱ + S_p α_p</div>
+    <p>V is the room volume, S is the total surface area and S_p is the panel area. The constant 55.26 is 24 ln 10. The panels cover an area of the room that had the mean absorption coefficient ᾱ.</p>
+
+    <h2>Limits</h2>
+    <ul>
+      <li>The formulas are correct for a diffuse sound field. They are less accurate in a room with one very absorbent surface, or in a long or flat room.</li>
+      <li>The tool does not include air absorption. Air absorption decreases the RT60 above approximately 2 kHz in large rooms.</li>
+      <li>People and furniture add absorption. Include them in the mean absorption coefficient, or use a measured RT60.</li>
+      <li>Use diffuse-field (random-incidence) values for the panels.</li>
+    </ul>
+    <p class="refs">References: W. C. Sabine, <i>Collected Papers on Acoustics</i> (1922). C. F. Eyring, J. Acoust. Soc. Am. 1 (1930) 217–241. ISO 3382-2 (measurement of reverberation time).</p>
+  </section>
+</main>
+<script>
+const OCTS = [125, 250, 500, 1000, 2000, 4000];
+const K = document.getElementById('kpis'), CH = document.getElementById('chart'), N = document.getElementById('notes'), TB = document.getElementById('table'), B = document.getElementById('bands');
+const data = {
+  room: { 125: 0.1, 250: 0.08, 500: 0.07, 1000: 0.07, 2000: 0.07, 4000: 0.08 },
+  rt: { 125: 1.2, 250: 1.1, 500: 1.0, 1000: 1.0, 2000: 0.9, 4000: 0.8 },
+  panel: { 125: 0.3, 250: 0.8, 500: 1.0, 1000: 1.0, 2000: 1.0, 4000: 1.0 },
+};
+let form;
+
+function buildBands(v) {
+  B.innerHTML = '';
+  const key = v.existing === 'rt' ? 'rt' : 'room';
+  const head = UI.el('tr', {}, UI.el('th', {}, 'Band'), UI.el('th', {}, key === 'rt' ? 'Measured RT60 (s)' : 'Room mean α'), UI.el('th', {}, 'Panel α'));
+  const tb = UI.el('tbody');
+  for (const b of OCTS) {
+    const mk = (k, step) => {
+      const inp = UI.el('input', { type: 'number', step, min: '0', inputmode: 'decimal', 'aria-label': `${k} at ${b} Hz` });
+      inp.value = data[k][b];
+      inp.addEventListener('input', () => { data[k][b] = Number(inp.value); form.update(); });
+      return UI.el('td', {}, inp);
+    };
+    tb.append(UI.el('tr', {}, UI.el('th', { scope: 'row' }, b + ' Hz'), mk(key, key === 'rt' ? '0.05' : '0.01'), mk('panel', '0.01')));
+  }
+  B.append(UI.el('div', { class: 'table-wrap' }, UI.el('table', { class: 'data input-table' }, UI.el('thead', {}, head), tb)));
+}
+
+let lastExisting = null;
+form = UI.form(document.getElementById('form'), [
+  { group: 'Room' },
+  { id: 'L', label: 'Length', unit: 'm', value: 8, min: 0.5, max: 500 },
+  { id: 'W', label: 'Width', unit: 'm', value: 6, min: 0.5, max: 500 },
+  { id: 'H', label: 'Height', unit: 'm', value: 3, min: 0.5, max: 100 },
+  { id: 'existing', label: 'Room now', type: 'select', value: 'alpha', options: [
+    { value: 'alpha', label: 'Mean absorption coefficient' }, { value: 'rt', label: 'Measured RT60' }] },
+  { id: 'formula', label: 'Formula', type: 'select', value: 'sabine', options: [
+    { value: 'sabine', label: 'Sabine' }, { value: 'eyring', label: 'Eyring' }] },
+  { group: 'Panels' },
+  { id: 'Sp', label: 'Total panel area', unit: 'm²', value: 20, min: 0, max: 100000 },
+  { group: 'Air' },
+  { id: 'temp', label: 'Air temperature', unit: '°C', value: 20, min: -20, max: 50 },
+], (v, ok) => {
+  if (v.existing !== lastExisting) { lastExisting = v.existing; buildBands(v); }
+  if (!ok) { UI.notes(N, [{ level: 'error', text: 'One or more inputs are not correct. Correct the inputs that show in red.' }]); return; }
+  const c = AC.air(v.temp).c;
+  const V = v.L * v.W * v.H;
+  const S = 2 * (v.L * v.W + v.L * v.H + v.W * v.H);
+  const n = [];
+  if (v.Sp > S) { UI.notes(N, [{ level: 'error', text: `The panel area is more than the room surface area (${UI.fmt(S, 1)} m²).` }]); return; }
+  const rtOf = (A) => v.formula === 'eyring' ? AC.eyringRT({ V, S, alphaMean: A / S, c }) : AC.sabineRT({ V, A, c });
+  const rows = [], before = [], after = [];
+  for (const b of OCTS) {
+    let A;
+    if (v.existing === 'rt') {
+      const T = data.rt[b];
+      if (!(T > 0)) { rows.push([b + ' Hz', '–', '–', '–', '–']); continue; }
+      // Invert the selected formula for A
+      A = v.formula === 'eyring' ? AC.absorptionAreaFromRTEyring({ V, S, T, c }) : AC.absorptionAreaFromRT({ V, T, c });
+    } else A = data.room[b] * S;
+    const am = A / S;
+    const A2 = A - v.Sp * am + v.Sp * (data.panel[b] || 0);
+    const t1 = rtOf(A), t2 = rtOf(A2);
+    if (am > 1) n.push({ level: 'warn', text: `At ${b} Hz the mean absorption coefficient is more than 1. Check the inputs.` });
+    before.push([b, t1]); after.push([b, t2]);
+    rows.push([b + ' Hz', UI.fmt(am, 3), UI.fmt(t1, 2) + ' s', UI.fmt(t2, 2) + ' s', UI.fmt(A2 - A, 1) + ' m²']);
+  }
+  const mid = (arr) => { const x = arr.filter((p) => p[0] === 500 || p[0] === 1000); return x.length === 2 ? (x[0][1] + x[1][1]) / 2 : NaN; };
+  UI.kpis(K, [
+    { label: 'Volume', value: UI.fmt(V, 1) + ' m³', sub: 'surface ' + UI.fmt(S, 1) + ' m²' },
+    { label: 'RT60 before (500–1k)', value: UI.fmt(mid(before), 2) + ' s' },
+    { label: 'RT60 after (500–1k)', value: UI.fmt(mid(after), 2) + ' s' },
+    { label: 'Panel coverage', value: UI.fmt(100 * v.Sp / S, 1) + ' %', sub: 'of room surface' },
+  ]);
+  const ymax = Math.max(0.5, ...before.map((p) => p[1]), ...after.map((p) => p[1]));
+  const step = ymax > 4 ? 1 : ymax > 2 ? 0.5 : 0.25;
+  const top = Math.ceil(ymax / step) * step;
+  const ticks = []; for (let y = 0; y <= top + 1e-9; y += step) ticks.push(+y.toFixed(2));
+  UI.chart(CH, { series: [{ name: 'Before', points: before, markers: true }, { name: 'After', points: after, markers: true }], legend: true,
+    xMin: 100, xMax: 5000, yMin: 0, yMax: top, xTicks: OCTS, xFmt: (x, h) => (h ? UI.fmtHz(x) : UI.freqTickFmt(x)),
+    yTicks: ticks, yFmt: (y, h) => UI.fmt(y, 2) + (h ? ' s' : ''), xLabel: 'Octave band (Hz)', yLabel: 'RT60 (s)', ariaLabel: 'Reverberation time before and after' });
+  UI.table(TB, ['Band', 'Mean α before', 'RT60 before', 'RT60 after', 'Added absorption'], rows);
+  n.push({ text: `Formula: ${v.formula === 'eyring' ? 'Eyring' : 'Sabine'}. Air absorption is not included.` });
+  UI.notes(N, n);
+});
+document.getElementById('load').addEventListener('click', () => {
+  const p = UI.loadPanelResult();
+  if (!p) { UI.notes(N, [{ level: 'warn', text: 'No panel result is saved. On a panel page, click "Save result for other pages" first.' }]); return; }
+  for (const b of OCTS) data.panel[b] = +(p.octaveAlpha[b] ?? 0).toFixed(3);
+  lastExisting = null;
+  form.update();
+});
+</script>
+</body>
+</html>

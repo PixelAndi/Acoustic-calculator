@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Microperforated Panel Calculator</title>
+<meta name="description" content="Calculate the sound absorption of a microperforated panel (MPP) with sub-millimetre holes over an air cavity, with Maa's exact model.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/absorber.js"></script>
+</head>
+<body>
+<main>
+  <h1>Microperforated panel (MPP)</h1>
+  <p class="lead">This calculator gives the sound absorption of a thin panel with very small holes (less than 1 mm) in front of an air cavity. An MPP does not need a porous absorber.</p>
+
+  <div id="calc"></div>
+
+  <section class="doc">
+    <h2>How to use</h2>
+    <ol>
+      <li>Type the panel thickness, the hole diameter and the hole spacing.</li>
+      <li>Select the hole pattern. The calculator shows the open area and the perforate constant x.</li>
+      <li>Type the depth of the air cavity behind the panel.</li>
+      <li>Read the curve. Change the cavity depth to move the peak. Change the open area to change the height of the peak.</li>
+    </ol>
+
+    <h2>Description</h2>
+    <p>In a very small hole, the boundary layer of the air fills most of the hole. Thus the friction in the hole is high. The holes give the resistance and the mass. The air cavity gives the spring. The panel absorbs sound at and near the resonance frequency.</p>
+    <p>An MPP can be made of metal, plastic, glass or wood. It is clean and it can be transparent. The best absorption occurs when the resistance of the panel is near ρ₀c₀ (approximately 410 Pa·s/m).</p>
+
+    <h2>Method</h2>
+    <p>The calculator uses the exact model of Maa, with complex Bessel functions. The Bessel ratio was checked against SciPy to 12 decimal places.</p>
+    <div class="formula">x = a √(ω ρ₀ / η)                    (perforate constant, a = hole radius)
+Z_h = (j ω ρ₀ t / ε) [1 − 2 J₁(x√−j) / (x√−j · J₀(x√−j))]⁻¹
+      + √(2 ω ρ₀ η) / (2ε)              (end resistance)
+      + j ω ρ₀ (1.7 a) / ε               (end mass, 0.85 × diameter)
+Z = Z_h + Z_cavity,   Z_cavity = −j ρ₀c₀ cot(k d)   (normal incidence)</div>
+    <p>The "Porous Absorber Calculator V1.60" spreadsheet shows "#NAME?" for this model in Office 365, because its Bessel functions do not run. This calculator does not have that problem.</p>
+
+    <h2>Limits</h2>
+    <ul>
+      <li>The panel is rigid. A thin, light MPP can vibrate. This changes the result, mostly at low frequencies.</li>
+      <li>The holes do not interact. This is correct for a small open area (usually less than approximately 5 %).</li>
+      <li>The model is for round holes with straight walls.</li>
+      <li>The calculation is for a panel of infinite size.</li>
+    </ul>
+    <p class="refs">References: D.-Y. Maa, "Potential of microperforated panel absorber", J. Acoust. Soc. Am. 104 (1998) 2861–2866. T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapter 6.</p>
+  </section>
+</main>
+<script>
+AbsorberPage.init(document.getElementById('calc'), {
+  name: 'MPP',
+  file: 'microperforated-panel.csv',
+  cavityOption: true,
+  fields: [
+    { group: 'Panel' },
+    { id: 't', label: 'Panel thickness', unit: 'mm', value: 0.5, min: 0.01, max: 20 },
+    { id: 'dh', label: 'Hole diameter', unit: 'mm', value: 0.4, min: 0.01, max: 5 },
+    { id: 'D', label: 'Hole spacing (centre to centre)', unit: 'mm', value: 4, min: 0.02, max: 100 },
+    { id: 'pattern', label: 'Hole pattern', type: 'select', value: 'square', options: [
+      { value: 'square', label: 'Square grid' }, { value: 'triangular', label: 'Triangular grid' }] },
+    { group: 'Cavity' },
+    { id: 'depth', label: 'Air cavity depth', unit: 'mm', value: 50, min: 1, max: 2000 },
+  ],
+  build(v, a) {
+    if (v.D <= v.dh) return { error: 'The hole spacing must be more than the hole diameter.' };
+    const fac = AC.microperforatedFacing({ t: v.t / 1000, a: v.dh / 2000, D: v.D / 1000, pattern: v.pattern });
+    const notes = [];
+    if (v.dh > 1) notes.push({ level: 'warn', text: 'The holes are larger than 1 mm. The panel resistance is low. Use the perforated panel page with a porous absorber.' });
+    if (fac.eps > 0.05) notes.push({ level: 'warn', text: `The open area is ${UI.fmt(fac.eps * 100, 2)} %. The model does not include interaction between holes. Accuracy decreases above approximately 5 %.` });
+    const x500 = (v.dh / 2000) * Math.sqrt((2 * Math.PI * 500 * a.rho) / a.eta);
+    const r0 = (8 * a.eta * (v.t / 1000)) / (fac.eps * (v.dh / 2000) ** 2);
+    const tEff = v.t / 1000 + 1.7 * (v.dh / 2000);
+    const f0 = AC.helmholtzFrequency({ eps: fac.eps, tEff, depth: v.depth / 1000, c: a.c });
+    return {
+      construction: { layers: [{ type: 'air', thickness: v.depth / 1000 }], facing: fac },
+      parts: [{ kind: 'facing', label: 'MPP', mm: v.t }, { kind: 'air', label: 'Air', mm: v.depth }],
+      short: `${v.t} mm, Ø${v.dh} @ ${v.D} mm, ${v.depth} mm cavity`,
+      info: [
+        ['Open area ε', UI.fmt(fac.eps * 100, 3) + ' %'],
+        ['Perforate constant x at 500 Hz', UI.fmt(x500, 2)],
+        ['Flow resistance of panel (DC)', UI.fmt(r0, 0) + ' Pa·s/m (' + UI.fmt(r0 / a.Z0, 2) + ' ρ₀c₀)'],
+      ],
+      resonance: { label: 'Resonance f₀', f: f0, sub: 'lumped estimate, end mass 0.85 d' },
+      notes,
+    };
+  },
+});
+</script>
+</body>
+</html>

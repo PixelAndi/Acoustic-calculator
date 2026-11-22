@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acoustic Calculator</title>
+<meta name="description" content="Calculators for acoustic absorber panels: porous, perforated, slotted, microperforated and membrane absorbers, plus ratings, reverberation and room modes.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/ui.js"></script>
+</head>
+<body>
+<main>
+  <h1>Acoustic Calculator</h1>
+  <p class="lead">These calculators help you design acoustic absorber panels. Select a calculator. Each page tells you how to use it, how it calculates, and its limits.</p>
+
+  <h2>Absorber panels</h2>
+  <div class="grid-cards">
+    <a class="card" href="porous.html"><span class="tag">Absorption curve</span><h3>Porous absorber</h3><p>Mineral wool, glass wool or foam on a wall, with or without an air gap.</p></a>
+    <a class="card" href="perforated.html"><span class="tag">Absorption curve</span><h3>Perforated panel</h3><p>A panel with round holes over a cavity with porous absorber.</p></a>
+    <a class="card" href="slotted.html"><span class="tag">Absorption curve</span><h3>Slotted panel</h3><p>A panel with slots, or a wall of slats, over a cavity.</p></a>
+    <a class="card" href="microperforated.html"><span class="tag">Absorption curve</span><h3>Microperforated panel</h3><p>A thin panel with holes smaller than 1 mm. No porous absorber is necessary.</p></a>
+    <a class="card" href="membrane.html"><span class="tag">Absorption curve</span><h3>Membrane absorber</h3><p>A sheet without holes over a cavity, for low frequencies.</p></a>
+  </div>
+
+  <h2>Design tools</h2>
+  <div class="grid-cards">
+    <a class="card" href="resonance.html"><span class="tag">Quick design</span><h3>Resonance and cavity depth</h3><p>Find the resonance frequency, or the cavity depth for a target frequency.</p></a>
+    <a class="card" href="flow-resistivity.html"><span class="tag">Material</span><h3>Flow resistivity</h3><p>Calculate σ from a measurement, or estimate it from the fibres.</p></a>
+    <a class="card" href="ratings.html"><span class="tag">Rating</span><h3>NRC, SAA and αw</h3><p>Single-number ratings and the absorption class from band values.</p></a>
+    <a class="card" href="sound-in-air.html"><span class="tag">Basics</span><h3>Sound in air</h3><p>Speed of sound, wavelength and quarter-wave frequency.</p></a>
+  </div>
+
+  <h2>Rooms</h2>
+  <div class="grid-cards">
+    <a class="card" href="reverberation.html"><span class="tag">Room</span><h3>Reverberation time</h3><p>RT60 before and after you add panels (Sabine and Eyring).</p></a>
+    <a class="card" href="room-modes.html"><span class="tag">Room</span><h3>Room modes</h3><p>Axial, tangential and oblique modes, and the Schroeder frequency.</p></a>
+  </div>
+
+  <section class="doc">
+    <h2>About the calculations</h2>
+    <p>The absorber pages use the transfer of impedance through layers. The models come from Cox &amp; D'Antonio, <i>Acoustic Absorbers and Diffusers</i>. Automatic tests check the calculations against the "Porous Absorber Calculator V1.60" spreadsheet, against SciPy and against known physical limits.</p>
+    <p>The results are predictions. Real products can be different because of the size of the panel, the mounting and the quality of the material. For a final design, use measured data from a laboratory.</p>
+    <p>All calculations run in your browser. The tool does not send data to a server.</p>
+  </section>
+</main>
+</body>
+</html>

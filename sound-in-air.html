@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sound in Air Calculator</title>
+<meta name="description" content="Calculate the speed of sound, air density, characteristic impedance, wavelength and quarter wavelength for a given temperature and frequency.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/ui.js"></script>
+</head>
+<body>
+<main>
+  <h1>Sound in air and wavelength</h1>
+  <p class="lead">This tool gives the properties of air and the wavelength of sound. It also gives the lowest frequency at which a layer of a given depth is a quarter wavelength.</p>
+
+  <div class="calc">
+    <div class="card"><h2>Inputs</h2><div id="form"></div></div>
+    <div>
+      <div class="card"><h2>Results</h2><div id="kpis"></div><div id="notes"></div></div>
+      <div class="card"><h2>Wavelength by octave band</h2><div id="table"></div></div>
+    </div>
+  </div>
+
+  <section class="doc">
+    <h2>How to use</h2>
+    <ol>
+      <li>Type the air temperature and the air pressure.</li>
+      <li>Type a frequency to get its wavelength.</li>
+      <li>Type the depth of an absorber (with its air gap) to get its quarter-wave frequency.</li>
+    </ol>
+
+    <h2>Description</h2>
+    <p>The speed of sound in air increases with temperature. The wavelength is the speed of sound divided by the frequency.</p>
+    <p>Near a rigid wall the air cannot move. The air moves most at a quarter wavelength from the wall. A porous absorber works best where the air moves most. Thus, as a guide, a porous absorber works well above the frequency where its total depth is a quarter wavelength. Use the porous absorber page for an accurate result.</p>
+
+    <h2>Method</h2>
+    <div class="formula">c = √(γ R T)            γ = 1.4, R = 287.05 J/(kg·K), T in kelvin
+ρ₀ = p / (R T)
+Z₀ = ρ₀ c
+η = 1.458×10⁻⁶ T^1.5 / (T + 110.4)     (Sutherland)
+λ = c / f
+f(λ/4 = d) = c / (4 d)</div>
+
+    <h2>Limits</h2>
+    <ul>
+      <li>The air is dry. Humidity increases the speed of sound slightly (less than 0.5 % at room temperature).</li>
+      <li>The quarter-wave rule is a guide only. It is not an exact limit.</li>
+    </ul>
+    <p class="refs">References: L. E. Kinsler et al., <i>Fundamentals of Acoustics</i>. ISO 9613-1 (atmospheric properties).</p>
+  </section>
+</main>
+<script>
+const K = document.getElementById('kpis'), N = document.getElementById('notes'), TB = document.getElementById('table');
+UI.form(document.getElementById('form'), [
+  { group: 'Air' },
+  { id: 'temp', label: 'Air temperature', unit: '°C', value: 20, min: -50, max: 60 },
+  { id: 'p', label: 'Air pressure', unit: 'kPa', value: 101.325, min: 50, max: 120 },
+  { group: 'Sound' },
+  { id: 'f', label: 'Frequency', unit: 'Hz', value: 125, min: 1, max: 100000 },
+  { id: 'd', label: 'Absorber depth (with air gap)', unit: 'mm', value: 100, min: 1, max: 10000 },
+], (v, ok) => {
+  if (!ok) { UI.notes(N, [{ level: 'error', text: 'One or more inputs are not correct. Correct the inputs that show in red.' }]); return; }
+  const a = AC.air(v.temp, v.p);
+  const lam = a.c / v.f;
+  UI.kpis(K, [
+    { label: 'Speed of sound c', value: UI.fmt(a.c, 1) + ' m/s' },
+    { label: 'Air density ρ₀', value: UI.fmt(a.rho, 3) + ' kg/m³' },
+    { label: 'Impedance ρ₀c', value: UI.fmt(a.Z0, 1) + ' Pa·s/m' },
+    { label: 'Viscosity η', value: UI.fmt(a.eta * 1e5, 3) + '×10⁻⁵ Pa·s' },
+    { label: 'Wavelength at ' + UI.fmtHz(v.f), value: UI.fmt(lam * 1000, 0) + ' mm', sub: 'λ/4 = ' + UI.fmt(lam * 250, 0) + ' mm' },
+    { label: 'Quarter-wave frequency of ' + v.d + ' mm', value: UI.fmtHz(a.c / (4 * v.d / 1000)), sub: 'guide only' },
+  ]);
+  const bands = [31.5, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+  UI.table(TB, ['Octave', 'λ', 'λ/2', 'λ/4'], bands.map((b) => {
+    const l = a.c / b;
+    const m = (x) => (x >= 1 ? UI.fmt(x, 2) + ' m' : UI.fmt(x * 1000, 0) + ' mm');
+    return [b + ' Hz', m(l), m(l / 2), m(l / 4)];
+  }));
+  UI.notes(N, [{ text: 'The table uses nominal band frequencies.' }]);
+});
+</script>
+</body>
+</html>
