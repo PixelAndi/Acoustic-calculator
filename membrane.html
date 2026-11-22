@@ -9,6 +9,8 @@
 <script src="js/core.js"></script>
 <script src="js/visual.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/references.js"></script>
+<script src="js/refdata.js"></script>
 <script src="js/absorber.js"></script>
 </head>
 <body>
@@ -38,6 +40,8 @@ Surface:        Z = Z_p + Z_cavity
 Resonance, lumped:   f₀ = (1/2π) √(ρ₀c₀² / (m d))  ≈ 60 / √(m d)
 Resonance, exact:    ω m = ρ₀c₀ cot(ω d / c₀)          (empty cavity, normal incidence)</div>
 
+    <p class="sources">Sources: limp-panel model and resonance <cite data-ref="cox2016,ford1969"></cite>; research on membrane bass absorbers <cite data-ref="calder2017"></cite>.</p>
+
     <h2>Limits</h2>
     <ul>
       <li><b>Important:</b> the model uses a limp sheet. It does not include the bending stiffness of the sheet, the fixing at the edges or the loss in the sheet. A stiff sheet on a frame has a higher resonance frequency than this result.</li>
@@ -45,7 +49,9 @@ Resonance, exact:    ω m = ρ₀c₀ cot(ω d / c₀)          (empty cavity, n
       <li>The calculation is for a sheet of infinite size. Small panels have more resonances.</li>
       <li>If the cavity has no partitions, sound at oblique angles can travel along the cavity. Select "Cavity has partitions" if the cavity has a frame with cells.</li>
     </ul>
-    <p class="refs">Reference: T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapter 7.</p>
+    <h2>References</h2>
+    <ol data-refs-auto></ol>
+    <p class="derived"><a href="references.html">All references</a></p>
   </section>
 </main>
 <script>

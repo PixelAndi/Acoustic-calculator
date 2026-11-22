@@ -8,6 +8,8 @@
 <link rel="stylesheet" href="css/style.css">
 <script src="js/core.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/references.js"></script>
+<script src="js/refdata.js"></script>
 </head>
 <body>
 <main>
@@ -48,6 +50,8 @@ Random, glass fibre:    σ = 3.2 η (1−ε)^1.42 / a²
 Random, mineral fibre:  σ = 4.4 η (1−ε)^1.59 / a²</div>
     <p>d_f is the fibre diameter, a is the fibre radius, ε is the porosity and η is the dynamic viscosity of air. The fibre formulas are from Cox &amp; D'Antonio (table 5.1, after Mechel and Tarnow). They were checked against the "Porous Absorber Calculator V1.60" spreadsheet. The spreadsheet gives 7 075 for random orientation because it rounds the exponent 4/3 to 1.333. This tool uses 4/3 and gives 7 065.</p>
 
+    <p class="sources">Sources: definition and measurement <cite data-ref="iso9053"></cite>; Bies &amp; Hansen <cite data-ref="bies1980"></cite>; fibre formulas <cite data-ref="cox2016,mechel2008,tarnow1996"></cite>; check values <cite data-ref="whealy2020"></cite>.</p>
+
     <h2>Limits</h2>
     <ul>
       <li>The estimates are for fibrous materials only. Do not use them for foam.</li>
@@ -55,7 +59,9 @@ Random, mineral fibre:  σ = 4.4 η (1−ε)^1.59 / a²</div>
       <li>The two "perpendicular" formulas are for fibre radii of 6–10 µm and 20–30 µm. The tool uses the first formula up to a radius of 15 µm and the second formula above 15 µm. Between 10 µm and 20 µm, no formula has a stated range.</li>
       <li>Binder, facings and compression change the flow resistivity.</li>
     </ul>
-    <p class="refs">References: T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapter 5. D. A. Bies &amp; C. H. Hansen, Applied Acoustics 13 (1980) 357–391. ISO 9053, determination of airflow resistance.</p>
+    <h2>References</h2>
+    <ol data-refs-auto></ol>
+    <p class="derived"><a href="references.html">All references</a></p>
   </section>
 </main>
 <script>

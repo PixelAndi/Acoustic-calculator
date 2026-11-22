@@ -9,6 +9,8 @@
 <script src="js/core.js"></script>
 <script src="js/visual.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/references.js"></script>
+<script src="js/refdata.js"></script>
 <script src="js/treatments.js"></script>
 </head>
 <body>
@@ -69,6 +71,15 @@
     <p>If the requirement is a maximum (ANSI S12.60, DIN 18041 group B), the advisor aims 10 % below the maximum as a design margin.</p>
     <p>The panels cover hard surfaces. The advisor assumes that the absorption of the covered surface is small and does not subtract it.</p>
 
+    <h2>Sources</h2>
+    <ul>
+      <li>Target values: DIN 18041 groups A and B <cite data-ref="din18041,owa"></cite>; listening rooms <cite data-ref="bs1116,ebu3276"></cite>; classrooms in the USA <cite data-ref="ansi1260"></cite>.</li>
+      <li>Absorption area and RT60: Sabine formula <cite data-ref="sabine1922,kuttruff2016"></cite>. Schroeder frequency <cite data-ref="schroeder1962"></cite>.</li>
+      <li>Example spectrum for a published class: reference curve of ISO 11654 <cite data-ref="iso11654"></cite>.</li>
+      <li>Shop products: <cite data-ref="lundbergs,rusta,peutz2024,benjo,ikeaSkadis,dpiPegboard"></cite>. Furniture values: <cite data-ref="asra37"></cite>.</li>
+      <li>Position of treatment: early reflections <cite data-ref="olive1989,toole2025"></cite>; flutter echo <cite data-ref="halmrast2015"></cite>; room modes <cite data-ref="cox2004rooms"></cite>.</li>
+    </ul>
+
     <h2>Limits</h2>
     <ul>
       <li>The Sabine formula assumes a diffuse sound field. In small rooms, below the Schroeder frequency, room modes are more important than the reverberation time.</li>
@@ -76,8 +87,11 @@
       <li>Furniture is not counted. For values, see the furniture list.</li>
       <li>The advisor does not know about prices or offers. Type a price per m² if you want to compare costs.</li>
       <li>The position of the treatment is important. The advisor gives general rules for the position. It does not calculate it.</li>
-      <li>After you install the treatment, measure the room again.</li>
+      <li>After you install the treatment, measure the room again <cite data-ref="iso3382"></cite>.</li>
     </ul>
+    <h2>References</h2>
+    <ol data-refs-auto></ol>
+    <p class="derived"><a href="references.html">All references</a></p>
   </section>
 </main>
 <script>

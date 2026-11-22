@@ -9,6 +9,8 @@
 <script src="js/core.js"></script>
 <script src="js/visual.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/references.js"></script>
+<script src="js/refdata.js"></script>
 <script src="js/absorber.js"></script>
 </head>
 <body>
@@ -48,17 +50,21 @@ Resonance (empty cavity, depth d):  f₀ = (c / 2π) √(ε / (t′ d))</div>
     <p>a is the hole radius, D is the distance between hole centres, t is the panel thickness and ν is the kinematic viscosity of air.</p>
     <p>The calculator was checked against the "Porous Absorber Calculator V1.60" spreadsheet (perforated panel sheet). All three cavity arrangements agree to ±0.01.</p>
 
+    <p class="sources">Sources: panel impedance, mass end correction and resistance <cite data-ref="cox2016,ingard1953"></cite>; the interaction term 1 − 1.47√ε + 0.47ε<sup>3/2</sup> is the fit of Nesterov (1941), and the flanged end correction is 8a/(3π) ≈ 0.85a <cite data-ref="jaouen2018"></cite>; Cox &amp; D'Antonio round the factor to 0.8; cavity and porous layers <cite data-ref="allard2009"></cite>; resonance formula <cite data-ref="cox2016,kinsler2000"></cite>. The tests use data from <cite data-ref="whealy2020"></cite>.</p>
+
     <h2>Limits</h2>
     <ul>
       <li>The panel is rigid. It does not vibrate.</li>
       <li><b>Comparison with products:</b> for wood slat panels on felt, this model gives lower absorption than the published classes of the products (for example class C–D from the model, class A published, on battens with insulation). When a porous layer or felt touches the back of the panel, use measured data of the product if it is available.</li>
       <li>The model is for slot or hole spacing much smaller than the wavelength. At high frequencies, when the spacing is near half the wavelength, the result is less accurate.</li>
       <li>The model is for plane waves in the cavity. It does not include the extra resistance near the holes when the absorber touches the panel. The real result can be slightly different.</li>
-      <li>The end-correction formula is an approximation. It is less accurate for a large open area (more than approximately 20 %).</li>
+      <li>The end correction uses a fitted formula (Nesterov). Its stated range is √ε ≤ 0.9, that is an open area of 81 % or less <cite data-ref="jaouen2018"></cite>.</li>
       <li>The resonance formula is for a cavity that is much smaller than the wavelength. Use the curve for the accurate peak frequency.</li>
       <li>The calculation is for a panel of infinite size.</li>
     </ul>
-    <p class="refs">Reference: T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapter 6 and appendix B.4.</p>
+    <h2>References</h2>
+    <ol data-refs-auto></ol>
+    <p class="derived"><a href="references.html">All references</a></p>
   </section>
 </main>
 <script>
@@ -87,7 +93,8 @@ AbsorberPage.init(document.getElementById('calc'), {
     const cav = cavity(v);
     if (cav.error) return cav;
     const notes = [];
-    if (fac.eps > 0.2) notes.push({ level: 'warn', text: `The open area is ${UI.fmt(fac.eps * 100, 1)} %. The end-correction formula is less accurate above approximately 20 %. With a large open area the panel has little effect.` });
+    if (fac.eps > 0.81) notes.push({ level: 'warn', text: `The open area is ${UI.fmt(fac.eps * 100, 1)} %. The end-correction formula is stated for open areas of 81 % or less.` });
+    else if (fac.eps > 0.2) notes.push({ text: `The open area is ${UI.fmt(fac.eps * 100, 1)} %. With a large open area the panel has little effect on the absorption.` });
     if (v.dh < 1) notes.push({ level: 'warn', text: 'The holes are smaller than 1 mm. Use the microperforated panel page for an accurate result.' });
     const f0 = AC.helmholtzFrequency({ eps: fac.eps, tEff: fac.tEff, depth: v.depth / 1000, c: a.c });
     return {

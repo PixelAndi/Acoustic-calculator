@@ -8,6 +8,8 @@
 <link rel="stylesheet" href="css/style.css">
 <script src="js/core.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/references.js"></script>
+<script src="js/refdata.js"></script>
 </head>
 <body>
 <main>
@@ -49,13 +51,17 @@
     <h2>Method</h2>
     <div class="formula">ISO 11654 reference curve:  250 Hz 0.80 · 500 Hz 1.00 · 1000 Hz 1.00 · 2000 Hz 1.00 · 4000 Hz 0.90</div>
 
+    <p class="sources">Sources: SAA and NRC <cite data-ref="astmc423"></cite>; αp, αw, shape indicators and classes <cite data-ref="iso11654"></cite>; measurement in a reverberation room <cite data-ref="iso354"></cite>.</p>
+
     <h2>Limits</h2>
     <ul>
       <li>The standards use values measured in a reverberation room (ASTM C423 or ISO 354). Values from a prediction or from an impedance tube give only an estimate of the rating.</li>
       <li>If you type octave values, the tool uses them as αp after rounding. The NRC then uses octave values, not one-third-octave values. This is an approximation. SAA needs one-third-octave values.</li>
       <li>Negative values are set to 0.</li>
     </ul>
-    <p class="refs">References: ASTM C423, sound absorption by the reverberation room method. ISO 11654:1997, rating of sound absorption. ISO 354, measurement in a reverberation room.</p>
+    <h2>References</h2>
+    <ol data-refs-auto></ol>
+    <p class="derived"><a href="references.html">All references</a></p>
   </section>
 </main>
 <script>

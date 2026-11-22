@@ -9,6 +9,8 @@
 <script src="js/core.js"></script>
 <script src="js/visual.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/references.js"></script>
+<script src="js/refdata.js"></script>
 </head>
 <body>
 <main>
@@ -62,6 +64,8 @@ Model B – free in the room (both faces):
 S = area of one face of the panel.</div>
     <p>Model A is a good estimate for a cloud near the ceiling, where little sound reaches the upper face from the sides. Model B is for baffles and for clouds far from the ceiling. Measured values can be higher than both models, because of the edge effect.</p>
 
+    <p class="sources">Sources: absorption of discrete objects and arrays (ISO 354) <cite data-ref="iso354,davy2025"></cite>; free layer by transfer matrix <cite data-ref="allard2009"></cite>; diffuse-field integral <cite data-ref="paris1928"></cite>; edge effect <cite data-ref="thomasson1980,kawakami1998"></cite>; a reflector tilted by φ turns the reflection by 2φ <cite data-ref="openstaxReflection"></cite>.</p>
+
     <h2>Limits</h2>
     <ul>
       <li>Neither model includes the edges. Real panels absorb more per square metre than an infinite layer, because sound bends into the edges (edge effect). Small panels have a larger edge effect.</li>
@@ -70,7 +74,9 @@ S = area of one face of the panel.</div>
       <li>The model does not include a fabric that touches only the lower face, frames or supports.</li>
       <li>For a final design, use values measured on the product (ISO 354).</li>
     </ul>
-    <p class="refs">References: T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapters 2 and 5. ISO 354, measurement of sound absorption in a reverberation room (objects).</p>
+    <h2>References</h2>
+    <ol data-refs-auto></ol>
+    <p class="derived"><a href="references.html">All references</a></p>
   </section>
 </main>
 <script>

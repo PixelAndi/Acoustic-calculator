@@ -9,6 +9,8 @@
 <script src="js/core.js"></script>
 <script src="js/visual.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/references.js"></script>
+<script src="js/refdata.js"></script>
 <script src="js/absorber.js"></script>
 </head>
 <body>
@@ -40,6 +42,8 @@ Z_h = (j ω ρ₀ t / ε) [1 − 2 J₁(x√−j) / (x√−j · J₀(x√−j))
 Z = Z_h + Z_cavity,   Z_cavity = −j ρ₀c₀ cot(k d)   (normal incidence)</div>
     <p>The "Porous Absorber Calculator V1.60" spreadsheet shows "#NAME?" for this model in Office 365, because its Bessel functions do not run. This calculator does not have that problem.</p>
 
+    <p class="sources">Sources: exact and approximate models of Maa <cite data-ref="maa1975,maa1998"></cite>; textbook form <cite data-ref="cox2016"></cite>; end correction 0.85 d <cite data-ref="maa1998,jaouen2018"></cite>.</p>
+
     <h2>Limits</h2>
     <ul>
       <li>The panel is rigid. A thin, light MPP can vibrate. This changes the result, mostly at low frequencies.</li>
@@ -47,7 +51,9 @@ Z = Z_h + Z_cavity,   Z_cavity = −j ρ₀c₀ cot(k d)   (normal incidence)</d
       <li>The model is for round holes with straight walls.</li>
       <li>The calculation is for a panel of infinite size.</li>
     </ul>
-    <p class="refs">References: D.-Y. Maa, "Potential of microperforated panel absorber", J. Acoust. Soc. Am. 104 (1998) 2861–2866. T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapter 6.</p>
+    <h2>References</h2>
+    <ol data-refs-auto></ol>
+    <p class="derived"><a href="references.html">All references</a></p>
   </section>
 </main>
 <script>

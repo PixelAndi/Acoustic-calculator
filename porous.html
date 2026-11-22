@@ -9,6 +9,8 @@
 <script src="js/core.js"></script>
 <script src="js/visual.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/references.js"></script>
+<script src="js/refdata.js"></script>
 <script src="js/absorber.js"></script>
 </head>
 <body>
@@ -46,15 +48,19 @@ Reflection:            R = (Z cosθ − ρ₀c₀) / (Z cosθ + ρ₀c₀),   α
 Diffuse field (Paris): α_d = ∫₀^{π/2} α(θ) sin 2θ dθ</div>
     <p>Miki uses the same form with f/σ and the coefficients 0.070, 0.107 (exponent −0.632) and 0.109, 0.160 (exponent −0.618).</p>
 
+    <p class="sources">Sources: Delany &amp; Bazley model <cite data-ref="delany1970"></cite>; Miki model <cite data-ref="miki1990,apmr"></cite>; transfer of impedance and oblique sound <cite data-ref="allard2009,cox2016"></cite>; diffuse-field (Paris) integral <cite data-ref="paris1928,kuttruff2016"></cite>. The tests use data from <cite data-ref="whealy2020"></cite>.</p>
+
     <h2>Limits</h2>
     <ul>
       <li>The models are empirical. They are accurate for 0.01 ≤ X ≤ 1.0. The calculator shows a warning outside this range.</li>
       <li>The Delany &amp; Bazley model can give negative absorption at low frequencies. This is an error of the model. Use the Miki model for these frequencies.</li>
-      <li>The calculation is for a layer of infinite size. Small panels absorb more sound per square metre because of edge diffraction. Laboratory values can be higher than the values here.</li>
+      <li>The calculation is for a layer of infinite size. Small panels absorb more sound per square metre because of edge diffraction <cite data-ref="thomasson1980,kawakami1998"></cite>. Laboratory values can be higher than the values here.</li>
       <li>The wall is rigid. The frame of the material does not move.</li>
       <li>Without partitions, the layer is "extended reacting": sound can travel along the layer. Select "Cavity has partitions" only if the layer is divided into small cells.</li>
     </ul>
-    <p class="refs">References: M. E. Delany &amp; E. N. Bazley, Applied Acoustics 3 (1970) 105–116. Y. Miki, J. Acoust. Soc. Jpn (E) 11 (1990) 19–24. T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapters 1 and 5.</p>
+    <h2>References</h2>
+    <ol data-refs-auto></ol>
+    <p class="derived"><a href="references.html">All references</a></p>
   </section>
 </main>
 <script>

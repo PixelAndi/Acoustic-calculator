@@ -9,6 +9,8 @@
 <script src="js/core.js"></script>
 <script src="js/visual.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/references.js"></script>
+<script src="js/refdata.js"></script>
 </head>
 <body>
 <main>
@@ -46,13 +48,17 @@ L′ = L + δ_inner + δ_outer
 Volume for a target f₀:  V = S / (L′ (2π f₀ / c)²)</div>
     <p>a is the neck radius and V is the internal volume of the box. The inner end is inside the box and is usually flanged.</p>
 
+    <p class="sources">Sources: resonance formula <cite data-ref="kinsler2000,ingard1953"></cite>; flanged end correction 8a/(3π) ≈ 0.85a <cite data-ref="jaouen2018"></cite>; unflanged end correction 0.6133a <cite data-ref="levine1948"></cite>.</p>
+
     <h2>Limits</h2>
     <ul>
       <li>All dimensions of the box and the neck must be much smaller than the wavelength. The calculator shows a warning if the largest dimension is more than 1/8 of the wavelength.</li>
       <li>The formula gives the frequency only. The absorption depends on the damping and on the position in the room. Put the resonator where the room mode has high pressure (for example, in a corner).</li>
       <li>Porous material in the box lowers the frequency a little.</li>
     </ul>
-    <p class="refs">References: Lord Rayleigh, <i>The Theory of Sound</i>. H. Levine &amp; J. Schwinger, Phys. Rev. 73 (1948) 383–406. L. E. Kinsler et al., <i>Fundamentals of Acoustics</i>.</p>
+    <h2>References</h2>
+    <ol data-refs-auto></ol>
+    <p class="derived"><a href="references.html">All references</a></p>
   </section>
 </main>
 <script>

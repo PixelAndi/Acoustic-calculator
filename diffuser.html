@@ -9,6 +9,8 @@
 <script src="js/core.js"></script>
 <script src="js/visual.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/references.js"></script>
+<script src="js/refdata.js"></script>
 </head>
 <body>
 <main>
@@ -65,6 +67,8 @@ Diffusion coefficient (ISO 17497-2 form), 37 directions, 5° steps:
 Normalised:                 d_n = (d − d_flat) / (1 − d_flat)</div>
     <p>For the skyline diffuser, the chart shows the scattering in the horizontal plane. The calculation uses the mean reflection factor of each column of blocks.</p>
 
+    <p class="sources">Sources: quadratic residue diffuser <cite data-ref="schroeder1979,cox2006history"></cite>; primitive root diffuser <cite data-ref="schroeder1980"></cite>; design and 2D diffusers <cite data-ref="dantonio1984,dantonio1992,dantonio1998,coxCh10"></cite>; flat-surface frequencies at N·f₀ <cite data-ref="dadiotis2008"></cite>; Fourier far-field model <cite data-ref="coxCh9,cox2006history"></cite>; diffusion coefficient <cite data-ref="hargreaves2000,iso17497,aes4id"></cite>. The upper limit c/(2w) is a common design rule (well width = half a wavelength); we could not confirm its exact form in a primary source that we could read.</p>
+
     <h2>Limits</h2>
     <ul>
       <li>The scattering model is the Fourier (Kirchhoff) model of Cox &amp; D'Antonio. It is a far-field estimate for normal incidence. It does not include the absorption in the wells or the coupling between wells. It is less accurate at low frequencies.</li>
@@ -72,7 +76,9 @@ Normalised:                 d_n = (d − d_flat) / (1 − d_flat)</div>
       <li>At the flat-surface frequencies, the diffuser reflects like a flat surface. Then the diffusion coefficient decreases.</li>
       <li>Narrow, deep wells absorb some sound, mostly at low frequencies. Seal and finish the wells well.</li>
     </ul>
-    <p class="refs">References: M. R. Schroeder, J. Acoust. Soc. Am. 57 (1975) 149–150 and 65 (1979) 958–963. T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapters 9–10. ISO 17497-2, measurement of the directional diffusion coefficient.</p>
+    <h2>References</h2>
+    <ol data-refs-auto></ol>
+    <p class="derived"><a href="references.html">All references</a></p>
   </section>
 </main>
 <script>
