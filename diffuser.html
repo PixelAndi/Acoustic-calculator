@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diffuser Calculator</title>
+<meta name="description" content="Design quadratic residue (QRD), primitive root (PRD) and 2D skyline diffusers: well depths, frequency limits, scattering polar plot and diffusion coefficient.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/visual.js"></script>
+<script src="js/ui.js"></script>
+</head>
+<body>
+<main>
+  <h1>Diffusers: QRD, PRD and skyline</h1>
+  <p class="lead">This calculator designs Schroeder diffusers. It gives the well depths (or block heights), the useful frequency range, the scattering pattern and the diffusion coefficient.</p>
+
+  <div class="calc">
+    <div class="card"><h2>Inputs</h2><div id="form"></div>
+      <div class="btn-row"><button class="btn" id="link" type="button">Copy link to these inputs</button></div>
+    </div>
+    <div>
+      <div class="card"><h2>What it looks like</h2><div id="view" class="panel-view"></div></div>
+      <div class="card"><h2>Design</h2><div id="kpis"></div><div id="notes"></div></div>
+      <div class="card"><h2>Scattering at the analysis frequency</h2><div id="polar" style="max-width:520px;margin:0 auto"></div>
+        <p class="derived">Level in dB relative to the maximum of each curve. Sound arrives from 0° (normal incidence). The flat surface has the same width.</p></div>
+      <div class="card"><h2>Normalised diffusion coefficient</h2><div id="chart"></div>
+        <div class="btn-row"><button class="btn" id="csv" type="button">Download CSV</button></div></div>
+      <div class="card"><h2 id="depthTitle">Well depths</h2><div id="table"></div></div>
+      <div class="card no-print"><h2>Add to project document</h2>
+        <div class="field full"><label for="pj-label">Name</label><div class="input-wrap"><input id="pj-label" type="text" maxlength="80" placeholder="For example: Rear wall diffusers"></div></div>
+        <div class="field"><label for="pj-q">Quantity</label><div class="input-wrap has-unit"><input id="pj-q" type="number" min="1" step="1" value="1"><span class="unit">pcs</span></div></div>
+        <div class="btn-row"><button class="btn primary" id="pj-add" type="button">Add to project</button></div>
+        <div class="derived" id="pjMsg" role="status"></div>
+      </div>
+    </div>
+  </div>
+
+  <section class="doc">
+    <h2>How to use</h2>
+    <ol>
+      <li>Select the type: QRD (1D wells), PRD (1D wells) or skyline (2D blocks).</li>
+      <li>Select the prime number N. A larger N gives more wells and usually better diffusion.</li>
+      <li>Type the design frequency. The diffuser works well from approximately this frequency.</li>
+      <li>Type the well width (or block width). This sets the highest useful frequency.</li>
+      <li>Read the depths and the diffusion coefficient. Change the inputs until the coefficient is high in the band that you need.</li>
+    </ol>
+
+    <h2>Description</h2>
+    <p>A diffuser scatters sound in many directions. It removes strong reflections and echoes but keeps the sound energy in the room. A Schroeder diffuser has wells (or blocks) of different depths. Each depth gives a different delay to the reflected sound. The sequence of depths comes from number theory, so the scattered energy is spread evenly.</p>
+    <ul>
+      <li><b>QRD</b> (quadratic residue): s_n = n² mod N. It scatters in one plane.</li>
+      <li><b>PRD</b> (primitive root): s_n = gⁿ mod N. It decreases the reflection in the specular direction at the design frequency.</li>
+      <li><b>Skyline</b>: a grid of blocks with s = (n² + m²) mod N. It scatters in all directions.</li>
+    </ul>
+
+    <h2>Method</h2>
+    <div class="formula">Depth:                     d_n = s_n λ₀ / (2N),   λ₀ = c / f₀
+Highest useful frequency:  f_max ≈ c / (2w)          (w = well width)
+Flat-surface frequencies:  f = m · N · f₀            (all wells reflect in phase)
+Scattering (far field, normal incidence, Kirchhoff / Fourier model):
+  p(θ) ∝ Σ R_n w_n sinc(k w_n sin θ / 2) exp(j k x_n sin θ),   R_n = exp(−2jk d_n)
+Diffusion coefficient (ISO 17497-2 form), 37 directions, 5° steps:
+  d = [(Σ E_i)² − Σ E_i²] / [(n − 1) Σ E_i²]
+Normalised:                 d_n = (d − d_flat) / (1 − d_flat)</div>
+    <p>For the skyline diffuser, the chart shows the scattering in the horizontal plane. The calculation uses the mean reflection factor of each column of blocks.</p>
+
+    <h2>Limits</h2>
+    <ul>
+      <li>The scattering model is the Fourier (Kirchhoff) model of Cox &amp; D'Antonio. It is a far-field estimate for normal incidence. It does not include the absorption in the wells or the coupling between wells. It is less accurate at low frequencies.</li>
+      <li>Above f_max, sound can move across the width of a well, and the depth sequence works less well.</li>
+      <li>At the flat-surface frequencies, the diffuser reflects like a flat surface. Then the diffusion coefficient decreases.</li>
+      <li>Narrow, deep wells absorb some sound, mostly at low frequencies. Seal and finish the wells well.</li>
+    </ul>
+    <p class="refs">References: M. R. Schroeder, J. Acoust. Soc. Am. 57 (1975) 149–150 and 65 (1979) 958–963. T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapters 9–10. ISO 17497-2, measurement of the directional diffusion coefficient.</p>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+UI.copyLink($('link'));
+const BANDS = [100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000];
+let last = null;
+
+UI.form($('form'), [
+  { group: 'Type' },
+  { id: 'type', label: 'Diffuser type', type: 'select', value: 'qrd', options: [
+    { value: 'qrd', label: 'QRD – quadratic residue (1D)' }, { value: 'prd', label: 'PRD – primitive root (1D)' }, { value: 'sky', label: 'Skyline – 2D blocks' }] },
+  { id: 'N', label: 'Prime number N', type: 'select', value: '7', options: [5, 7, 11, 13, 17, 19, 23].map((n) => ({ value: String(n), label: String(n) })) },
+  { group: 'Design' },
+  { id: 'f0', label: 'Design frequency f₀', unit: 'Hz', value: 500, min: 50, max: 5000 },
+  { id: 'w', label: 'Well (or block) width', unit: 'mm', value: 50, min: 5, max: 500 },
+  { id: 'tf', label: 'Fin thickness', unit: 'mm', value: 3, min: 0, max: 50, showIf: (v) => v.type !== 'sky' },
+  { id: 'L', label: 'Diffuser height (length of wells)', unit: 'mm', value: 600, min: 50, max: 5000, showIf: (v) => v.type !== 'sky' },
+  { id: 'periods', label: 'Number of periods side by side', unit: 'pcs', value: 3, min: 1, max: 20 },
+  { group: 'Analysis' },
+  { id: 'fa', label: 'Analysis frequency (polar plot)', unit: 'Hz', value: 1000, min: 50, max: 10000 },
+  { id: 'temp', label: 'Air temperature', unit: '°C', value: 20, min: -20, max: 50 },
+], compute);
+
+function compute(v, ok) {
+  if (!ok) { UI.notes($('notes'), [{ level: 'error', text: 'One or more inputs are not correct. Correct the inputs that show in red.' }]); return; }
+  if (!Number.isInteger(v.periods)) { UI.notes($('notes'), [{ level: 'error', text: 'Type a whole number of periods.' }]); return; }
+  const a = AC.air(v.temp);
+  const N = Number(v.N);
+  const w = v.w / 1000;
+  const sky = v.type === 'sky';
+  const tf = sky ? 0 : v.tf / 1000;
+  let seq, g = null, grid = null, depths = null;
+  if (v.type === 'qrd') seq = AC.qrdSequence(N);
+  else if (v.type === 'prd') { const p = AC.prdSequence(N); seq = p.seq; g = p.g; }
+  else grid = AC.qrd2DSequence(N);
+  const lam0 = a.c / v.f0;
+  if (sky) depths = grid.map((col) => col.map((s) => (s * lam0) / (2 * N)));
+  else depths = AC.diffuserDepths(seq, N, v.f0, a.c);
+  const flatD = sky ? depths.flat() : depths;
+  const dmax = Math.max(...flatD);
+  const nWells = sky ? N : seq.length;
+  const periodW = sky ? N * w : nWells * (w + tf) + tf;
+  const fmax = a.c / (2 * w);
+  const angles5 = Array.from({ length: 37 }, (_, i) => -90 + 5 * i);
+  const polarAt = (f, flat, angles) => sky
+    ? AC.diffuserPolar2DCut({ grid: depths, w, periods: v.periods, f, c: a.c, angles, flat })
+    : AC.diffuserPolar({ depths, w, tf, periods: v.periods, f, c: a.c, angles, flat });
+  // diffusion coefficient spectrum (energy summed over 5 frequencies per band)
+  const spec = BANDS.map((b) => {
+    const fc = AC.exactThirdOctave(b);
+    const E = new Array(37).fill(0), Ef = new Array(37).fill(0);
+    for (let i = 0; i < 5; i++) {
+      const f = fc * Math.pow(10, -0.05 + 0.1 * (i + 0.5) / 5);
+      polarAt(f, false, angles5).points.forEach((p, j) => (E[j] += p.energy));
+      polarAt(f, true, angles5).points.forEach((p, j) => (Ef[j] += p.energy));
+    }
+    const d = AC.diffusionCoefficient(E), df = AC.diffusionCoefficient(Ef);
+    return { b, d, df, dn: Math.max(0, (d - df) / (1 - df)) };
+  });
+  last = { v, N, seq, g, grid, depths, dmax, periodW, fmax, spec, sky };
+
+  // Drawing (one period)
+  const cells = [];
+  const mm = (x) => x * 1000;
+  if (sky) {
+    depths.forEach((col, n) => col.forEach((h, m) => {
+      const t = h / (dmax || 1);
+      cells.push({ x: n * v.w, y: m * v.w, w: v.w, l: v.w, h: mm(h), top: `hsl(35, 45%, ${78 - 30 * t}%)` });
+    }));
+    last.blocks = { cells, totalWidth: N * v.w, totalLength: N * v.w, maxHeight: mm(dmax), title: `Skyline diffuser, N = ${N}: one period, ${N} × ${N} blocks`, note: `${UI.fmt(N * v.w, 0)} × ${UI.fmt(N * v.w, 0)} mm, highest block ${UI.fmt(mm(dmax), 0)} mm` };
+    VIS.blocks($('view'), last.blocks);
+  } else {
+    let x = 0;
+    for (const d of depths) {
+      if (v.tf > 0) { cells.push({ x, y: 0, w: v.tf, l: v.L, h: mm(dmax), front: '#9c7a4b' }); x += v.tf; }
+      cells.push({ x, y: 0, w: v.w, l: v.L, h: mm(dmax - d) }); x += v.w;
+    }
+    if (v.tf > 0) cells.push({ x, y: 0, w: v.tf, l: v.L, h: mm(dmax), front: '#9c7a4b' });
+    last.blocks = { cells, totalWidth: periodW * 1000, totalLength: v.L, maxHeight: mm(dmax), title: `${v.type.toUpperCase()} diffuser, N = ${N}: one period, ${nWells} wells`, note: `Width ${UI.fmt(periodW * 1000, 0)} mm, height ${v.L} mm, deepest well ${UI.fmt(mm(dmax), 0)} mm` };
+    VIS.blocks($('view'), last.blocks);
+  }
+
+  const flats = [1, 2, 3].map((m) => m * N * v.f0).filter((f) => f <= Math.max(fmax, 10000));
+  UI.kpis($('kpis'), [
+    { label: 'Deepest well / highest block', value: UI.fmt(mm(dmax), 0) + ' mm', sub: 'build depth (without base)' },
+    { label: 'Width of one period', value: UI.fmt(periodW * 1000, 0) + ' mm', sub: `${nWells}${sky ? ' × ' + N : ''} ${sky ? 'blocks' : 'wells'}` },
+    { label: 'Useful range (estimate)', value: `${UI.fmtHz(v.f0)} – ${UI.fmtHz(fmax)}`, sub: 'f₀ to c / 2w' },
+    { label: 'Flat-surface frequency', value: UI.fmtHz(N * v.f0), sub: 'N · f₀ (and multiples)' },
+  ]);
+  const n = [];
+  if (fmax <= v.f0) n.push({ level: 'error', text: 'The well width is too large for this design frequency. Make the wells narrower or decrease f₀.' });
+  if (N * v.f0 < fmax) n.push({ level: 'warn', text: `The flat-surface frequency ${UI.fmtHz(N * v.f0)} is below f_max. Near this frequency the diffuser reflects like a flat surface. Use a larger N to move it higher.` });
+  if (!sky && v.tf > v.w / 4) n.push({ level: 'warn', text: 'The fins are thick compared to the wells. Thick fins decrease the diffusion at high frequencies.' });
+  if (v.type === 'prd') n.push({ text: `Primitive root g = ${g}. A PRD has N − 1 = ${N - 1} wells.` });
+  if (v.periods === 1) n.push({ text: 'One period gives a wide scattering pattern. More periods give more energy in some directions (grating lobes).' });
+  UI.notes($('notes'), n);
+
+  // Polar
+  const angles = Array.from({ length: 181 }, (_, i) => -90 + i);
+  const toDb = (pts) => { const mx = Math.max(...pts.map((p) => p.energy)); return pts.map((p) => ({ deg: p.deg, db: 10 * Math.log10(Math.max(p.energy / mx, 1e-6)) })); };
+  VIS.polar($('polar'), [
+    { name: `Diffuser at ${UI.fmtHz(v.fa)}`, points: toDb(polarAt(v.fa, false, angles).points) },
+    { name: 'Flat surface, same width', points: toDb(polarAt(v.fa, true, angles).points), dash: true },
+  ]);
+
+  // Chart
+  UI.chart($('chart'), {
+    series: [{ name: 'Normalised diffusion coefficient', points: spec.map((s) => [AC.exactThirdOctave(s.b), s.dn]), markers: true }],
+    xMin: 100, xMax: 5000, yMin: 0, yMax: 1, xTicks: [125, 250, 500, 1000, 2000, 4000], xFmt: (x, h) => (h ? UI.fmtHz(x) : UI.freqTickFmt(x)),
+    yTicks: [0, 0.2, 0.4, 0.6, 0.8, 1], yFmt: (y, h) => UI.fmt(y, h ? 2 : 1), xLabel: 'Frequency (Hz)', yLabel: 'Diffusion coefficient', ariaLabel: 'Normalised diffusion coefficient by band',
+  });
+
+  // Depth table
+  if (sky) {
+    $('depthTitle').textContent = 'Block heights (mm)';
+    UI.table($('table'), ['Row \\ column', ...Array.from({ length: N }, (_, i) => String(i + 1))], depths[0].map((_, m) => [String(m + 1), ...depths.map((col) => UI.fmt(mm(col[m]), 1))]));
+  } else {
+    $('depthTitle').textContent = 'Well depths';
+    UI.table($('table'), ['Well', 'Sequence s_n', 'Depth (mm)'], depths.map((d, i) => [String(i + 1), String(seq[i]), UI.fmt(mm(d), 1)]));
+  }
+}
+
+$('csv').addEventListener('click', () => {
+  if (!last) return;
+  const rows = [['Band (Hz)', 'd diffuser', 'd flat', 'normalised d']];
+  last.spec.forEach((s) => rows.push([s.b, s.d.toFixed(4), s.df.toFixed(4), s.dn.toFixed(4)]));
+  rows.push([]); rows.push(['Element', 'Depth (mm)']);
+  (last.sky ? last.depths.flat() : last.depths).forEach((d, i) => rows.push([i + 1, (d * 1000).toFixed(1)]));
+  UI.downloadCsv('diffuser.csv', [], rows);
+});
+
+$('pj-add').addEventListener('click', () => {
+  if (!last) return;
+  const { v, N, depths, dmax, periodW, sky } = last;
+  const qty = Math.max(1, Math.round(Number($('pj-q').value) || 1));
+  const kind = sky ? '2D skyline diffuser' : (v.type === 'qrd' ? 'QRD' : 'PRD') + ' diffuser';
+  const mm = (x) => UI.fmt(x * 1000, 1);
+  const rows = [['Type', kind], ['Prime number N', String(N)], ['Design frequency', v.f0 + ' Hz'], [sky ? 'Block width' : 'Well width', v.w + ' mm'],
+    ...(sky ? [] : [['Fin thickness', v.tf + ' mm'], ['Diffuser height', v.L + ' mm']]),
+    ['Width of one period', UI.fmt(periodW * 1000, 0) + ' mm'], ['Deepest well / highest block', mm(dmax) + ' mm'], ['Quantity', String(qty)]];
+  let steps;
+  if (sky) {
+    steps = [
+      `Cut ${N * N} blocks with a cross-section of ${v.w} × ${v.w} mm. Cut each block to the length in the table "Block heights".`,
+      `Cut a base board of ${UI.fmt(N * v.w, 0)} × ${UI.fmt(N * v.w, 0)} mm.`,
+      'Mark the grid on the base board. Glue each block in its position (row and column as in the table). Blocks with height 0 are not necessary.',
+      'Make sure that the blocks touch each other with no gaps.',
+      'Attach the diffuser to the wall or ceiling.',
+    ];
+  } else {
+    steps = [
+      `Cut a back board of ${UI.fmt(periodW * 1000, 0)} × ${v.L} mm.`,
+      `Cut ${depths.length + 1} fins of ${v.tf} mm thickness, ${UI.fmt(dmax * 1000, 0)} mm deep and ${v.L} mm long.`,
+      `Attach the fins to the back board with ${v.w} mm between them.`,
+      'Set the bottom of each well at the depth in the table. Measure the depth from the front edge of the fins. Use filler blocks or a stepped back.',
+      'Seal the wells so that no air leaks between them.',
+      'Attach the diffuser to the wall or ceiling.',
+    ];
+  }
+  const octs = [125, 250, 500, 1000, 2000, 4000];
+  const dnAt = (b) => (last.spec.find((s) => s.b === b) || {}).dn;
+  UI.project.addItem({
+    custom: true, type: 'diffuser', page: 'diffuser.html', hash: location.hash,
+    label: $('pj-label').value.trim() || kind,
+    model: `${kind}, N = ${N}, f₀ = ${v.f0} Hz, w = ${v.w} mm`,
+    visual: ['blocks', last.blocks],
+    kpis: [{ label: 'Useful range (estimate)', value: `${UI.fmtHz(v.f0)} – ${UI.fmtHz(last.fmax)}` }, { label: 'Deepest well', value: mm(dmax) + ' mm' }],
+    rows,
+    warnings: [{ level: 'WARNING', text: 'Wear eye protection and ear protection when you use power tools.' }, { level: 'CAUTION', text: 'Make sure that the wall or ceiling fixings can hold the weight of the diffuser.' }],
+    steps,
+    checks: [`All depths agree with the table to ±1 mm.`, `Quantity: ${qty} pcs.`],
+    table: sky
+      ? { headers: ['Row \\ column', ...Array.from({ length: N }, (_, i) => String(i + 1))], rows: depths[0].map((_, m) => [String(m + 1), ...depths.map((col) => mm(col[m]))]) }
+      : { headers: ['Well', ...depths.map((_, i) => String(i + 1))], rows: [['Depth (mm)', ...depths.map((d) => mm(d))]] },
+    chart: { series: [{ name: 'Normalised diffusion coefficient', points: last.spec.map((s) => [AC.exactThirdOctave(s.b), s.dn]) }], yLabel: 'Diffusion coefficient', xMin: 100, xMax: 5000 },
+    extraTable: { headers: ['Octave (Hz)', ...octs.map(String)], rows: [['Normalised d', ...octs.map((o) => UI.fmt(dnAt(o)))]] },
+    inputs: [],
+    notes: ['The diffusion coefficient is a Fourier-model estimate for normal incidence.'],
+    panel: { w: Math.round(periodW * 1000), h: sky ? Math.round(periodW * 1000) : v.L, qty },
+    quantities: { area: periodW * (sky ? periodW : v.L / 1000) * qty, absorber: [] },
+  });
+  $('pjMsg').innerHTML = 'Added. <a href="project.html">Open the project document</a>.';
+});
+</script>
+</body>
+</html>

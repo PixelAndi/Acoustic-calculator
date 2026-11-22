@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multilayer Absorber Builder</title>
+<meta name="description" content="Build a broadband or multilayer absorber from fabric, porous layers, air gaps, perforated, slotted, microperforated and membrane sheets, and calculate its absorption.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/visual.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/absorber.js"></script>
+</head>
+<body>
+<main>
+  <h1>Multilayer and broadband absorber</h1>
+  <p class="lead">Build your own absorber from layers. Use this page for broadband panels, fabric-covered panels, panels with two porous materials, double microperforated panels and other combinations.</p>
+
+  <div id="calc"></div>
+
+  <section class="doc">
+    <h2>How to use</h2>
+    <ol>
+      <li>Select a preset, or start with the default layers.</li>
+      <li>Change the layers. Layer 1 is on the room side. The last layer is next to the wall.</li>
+      <li>Click "Add layer" to add a layer. Use the arrows to move a layer. Click "×" to remove a layer.</li>
+      <li>Select the back: a rigid wall, or open air (for a panel that hangs free).</li>
+      <li>Read the curve. Click "Keep curve for comparison" to compare two designs.</li>
+    </ol>
+
+    <h2>Description</h2>
+    <p>A broadband absorber absorbs well over a wide range of frequencies. Usually it is a thick porous layer with an air gap behind it. A thin fabric on the front protects the porous layer and has almost no effect on the absorption if its flow resistance is low.</p>
+    <p>You can add sheets between layers. A perforated, slotted or microperforated sheet adds a resonance and moves absorption to lower frequencies. A closed sheet (membrane) makes a bass absorber.</p>
+
+    <h2>Layer types</h2>
+    <ul>
+      <li><b>Fabric or scrim:</b> a thin porous sheet. Flow resistance R (Pa·s/m) and surface mass. If the fabric is stretched or bonded, type mass 0.</li>
+      <li><b>Porous layer:</b> mineral wool, glass wool, foam or felt. Thickness and flow resistivity σ.</li>
+      <li><b>Air gap:</b> an empty space.</li>
+      <li><b>Perforated, slotted, microperforated sheet:</b> the same models as on their own pages.</li>
+      <li><b>Membrane:</b> a closed limp sheet with a surface mass.</li>
+    </ul>
+
+    <h2>Method</h2>
+    <div class="formula">Wall backing:  impedance transfer from the wall, layer by layer
+                Z_in = Z_n (Z_L cos k_x d + j Z_n sin k_x d) / (Z_n cos k_x d + j Z_L sin k_x d)
+Sheet:          Z_in = Z_L + Z_sheet
+Open backing:   transfer matrix of all layers, air on both sides
+                α = 1 − |R|² − |t|²      (energy that goes through is not absorbed)
+Fabric (limp):  Z = jωm R / (R + jωm);  m = 0 → Z = R</div>
+
+    <h2>Limits</h2>
+    <ul>
+      <li>All layers are flat, of infinite size, and the layers do not vibrate (except the membrane and the limp fabric).</li>
+      <li>A sheet directly against the rigid wall has no effect. The calculator shows a warning.</li>
+      <li>The porous models are accurate for 0.01 ≤ X ≤ 1.0. The calculator shows a warning outside this range.</li>
+      <li>With an open back, the result is for sound that comes from the front only. For a hanging baffle in a room, use the <a href="clouds.html">clouds and baffles</a> page.</li>
+    </ul>
+    <p class="refs">References: T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapters 2, 5–7 (transfer matrix and impedance models). J. F. Allard &amp; N. Atalla, <i>Propagation of Sound in Porous Media</i> (transfer matrices).</p>
+  </section>
+</main>
+<script>
+const KINDS = {
+  fabric: { label: 'Fabric or scrim', fields: [['R', 'Flow resistance R', 'Pa·s/m', 50, 0, 10000], ['m', 'Surface mass', 'g/m²', 300, 0, 5000]] },
+  porous: { label: 'Porous layer', fields: [['t', 'Thickness', 'mm', 50, 1, 2000], ['sigma', 'Flow resistivity σ', 'Pa·s/m²', 10000, 100, 1000000]], model: true },
+  air: { label: 'Air gap', fields: [['t', 'Thickness', 'mm', 50, 1, 5000]] },
+  perforated: { label: 'Perforated sheet', fields: [['t', 'Sheet thickness', 'mm', 12, 0.1, 100], ['dh', 'Hole diameter', 'mm', 8, 0.1, 200], ['D', 'Hole spacing', 'mm', 32, 0.2, 1000]] },
+  slotted: { label: 'Slotted sheet', fields: [['t', 'Sheet thickness', 'mm', 16, 0.1, 200], ['w', 'Slot width', 'mm', 5, 0.05, 500], ['pitch', 'Slot pitch', 'mm', 50, 0.1, 2000]] },
+  mpp: { label: 'Microperforated sheet', fields: [['t', 'Sheet thickness', 'mm', 0.5, 0.01, 20], ['dh', 'Hole diameter', 'mm', 0.4, 0.01, 5], ['D', 'Hole spacing', 'mm', 4, 0.02, 100]] },
+  membrane: { label: 'Membrane (closed sheet)', fields: [['m', 'Surface mass', 'kg/m²', 4, 0.01, 500]] },
+};
+const PRESETS = {
+  broadband: { label: 'Broadband: fabric + 100 mm wool + 100 mm air', layers: [{ k: 'fabric', R: 50, m: 300 }, { k: 'porous', t: 100, sigma: 10000, model: 'db' }, { k: 'air', t: 100 }] },
+  gradient: { label: 'Two wool densities (light at the front)', layers: [{ k: 'fabric', R: 50, m: 300 }, { k: 'porous', t: 50, sigma: 5000, model: 'db' }, { k: 'porous', t: 50, sigma: 25000, model: 'db' }] },
+  perf: { label: 'Perforated panel + wool + air', layers: [{ k: 'perforated', t: 12, dh: 8, D: 32 }, { k: 'porous', t: 50, sigma: 10000, model: 'db' }, { k: 'air', t: 50 }] },
+  dmpp: { label: 'Double microperforated panel', layers: [{ k: 'mpp', t: 0.5, dh: 0.4, D: 4 }, { k: 'air', t: 30 }, { k: 'mpp', t: 0.5, dh: 0.4, D: 6 }, { k: 'air', t: 50 }] },
+  bass: { label: 'Membrane bass absorber', layers: [{ k: 'membrane', m: 4 }, { k: 'porous', t: 50, sigma: 10000, model: 'db' }, { k: 'air', t: 100 }] },
+  fabricwool: { label: 'Fabric-covered wool, open back', layers: [{ k: 'fabric', R: 50, m: 300 }, { k: 'porous', t: 50, sigma: 10000, model: 'db' }, { k: 'fabric', R: 50, m: 300 }] },
+};
+const st = UI.readUrlState();
+let layers;
+try { layers = st.L ? JSON.parse(st.L) : null; } catch (_) { layers = null; }
+if (!Array.isArray(layers) || !layers.length) layers = JSON.parse(JSON.stringify(PRESETS.broadband.layers));
+
+function describe(l) {
+  switch (l.k) {
+    case 'fabric': return `Fabric, R = ${l.R} Pa·s/m, ${l.m} g/m²`;
+    case 'porous': return `Porous, ${l.t} mm, σ = ${l.sigma} Pa·s/m² (${l.model === 'miki' ? 'Miki' : 'Delany & Bazley'})`;
+    case 'air': return `Air gap, ${l.t} mm`;
+    case 'perforated': return `Perforated sheet, ${l.t} mm, Ø${l.dh} mm holes @ ${l.D} mm`;
+    case 'slotted': return `Slotted sheet, ${l.t} mm, ${l.w} mm slots @ ${l.pitch} mm`;
+    case 'mpp': return `Microperforated sheet, ${l.t} mm, Ø${l.dh} mm holes @ ${l.D} mm`;
+    case 'membrane': return `Membrane, ${l.m} kg/m²`;
+  }
+  return l.k;
+}
+
+let requestUpdate = () => {};
+function renderEditor(box) {
+  box.innerHTML = '';
+  const preset = UI.el('select', { 'aria-label': 'Preset' }, UI.el('option', { value: '' }, 'Select a preset…'), Object.entries(PRESETS).map(([k, p]) => UI.el('option', { value: k }, p.label)));
+  preset.addEventListener('change', () => {
+    if (!preset.value) return;
+    layers = JSON.parse(JSON.stringify(PRESETS[preset.value].layers));
+    if (preset.value === 'fabricwool') document.getElementById('f-backing').value = 'free';
+    renderEditor(box); requestUpdate();
+  });
+  box.append(UI.el('fieldset', {}, UI.el('legend', {}, 'Layers (room side first)'), UI.el('div', { class: 'field full' }, preset)));
+  layers.forEach((l, i) => {
+    const kind = UI.el('select', { 'aria-label': `Layer ${i + 1} type` }, Object.entries(KINDS).map(([k, d]) => UI.el('option', { value: k }, d.label)));
+    kind.value = l.k;
+    kind.addEventListener('change', () => {
+      const n = { k: kind.value };
+      for (const f of KINDS[kind.value].fields) n[f[0]] = f[3];
+      if (KINDS[kind.value].model) n.model = 'db';
+      layers[i] = n; renderEditor(box); requestUpdate();
+    });
+    const btn = (label, title, fn, dis) => UI.el('button', { class: 'btn', type: 'button', title, 'aria-label': title, disabled: dis, onclick: fn }, label);
+    const head = UI.el('div', { class: 'layer-head' }, UI.el('span', { class: 'num' }, `${i + 1}.`), kind,
+      btn('↑', 'Move layer up', () => { [layers[i - 1], layers[i]] = [layers[i], layers[i - 1]]; renderEditor(box); requestUpdate(); }, i === 0),
+      btn('↓', 'Move layer down', () => { [layers[i + 1], layers[i]] = [layers[i], layers[i + 1]]; renderEditor(box); requestUpdate(); }, i === layers.length - 1),
+      btn('×', 'Remove layer', () => { layers.splice(i, 1); renderEditor(box); requestUpdate(); }, layers.length === 1));
+    const card = UI.el('div', { class: 'layer' }, head);
+    for (const [key, label, unit, def, min, max] of KINDS[l.k].fields) {
+      const inp = UI.el('input', { type: 'number', step: 'any', min, max, inputmode: 'decimal', 'aria-label': `Layer ${i + 1} ${label}` });
+      inp.value = l[key] ?? def;
+      inp.addEventListener('input', () => { l[key] = inp.value === '' ? NaN : Number(inp.value); requestUpdate(); });
+      card.append(UI.el('div', { class: 'field' }, UI.el('label', {}, label), UI.el('div', { class: 'input-wrap has-unit' }, inp, UI.el('span', { class: 'unit' }, unit))));
+    }
+    if (KINDS[l.k].model) {
+      const m = UI.el('select', { 'aria-label': `Layer ${i + 1} model` }, UI.el('option', { value: 'db' }, 'Delany & Bazley'), UI.el('option', { value: 'miki' }, 'Miki'));
+      m.value = l.model || 'db';
+      m.addEventListener('change', () => { l.model = m.value; requestUpdate(); });
+      card.append(UI.el('div', { class: 'field' }, UI.el('label', {}, 'Porous model'), m));
+    }
+    box.append(card);
+  });
+  box.append(UI.el('div', { class: 'btn-row', style: 'margin-bottom:1rem' }, UI.el('button', { class: 'btn', type: 'button', onclick: () => { layers.push({ k: 'porous', t: 50, sigma: 10000, model: 'db' }); renderEditor(box); requestUpdate(); } }, 'Add layer')));
+}
+
+AbsorberPage.init(document.getElementById('calc'), {
+  type: 'multilayer',
+  name: 'Multilayer',
+  file: 'multilayer-absorber.csv',
+  cavityOption: true,
+  editor(box, upd) { requestUpdate = upd; renderEditor(box); },
+  extraState: () => ({ L: JSON.stringify(layers) }),
+  extraRows: () => layers.map((l, i) => [`Layer ${i + 1}${i === 0 ? ' (room side)' : i === layers.length - 1 ? ' (back)' : ''}`, describe(l)]),
+  fields: [
+    { group: 'Back of the absorber' },
+    { id: 'backing', label: 'Back', type: 'select', value: 'wall', options: [
+      { value: 'wall', label: 'Rigid wall' }, { value: 'free', label: 'Open air (hangs free)' }] },
+  ],
+  visual(v) {
+    const front = layers[0];
+    const depth = layers.reduce((s, l) => s + (l.t > 0 && (l.k === 'porous' || l.k === 'air' || l.k === 'perforated' || l.k === 'slotted' || l.k === 'mpp') ? l.t : 0), 0);
+    const base = { w: v.pw, h: v.ph, depth, title: 'Multilayer panel – front layer: ' + KINDS[front.k].label.toLowerCase() };
+    if (front.k === 'perforated') return ['panel', { ...base, material: 'wood', face: 'holes', holes: { D: front.D, r: front.dh / 2, pattern: 'square' } }];
+    if (front.k === 'mpp') return ['panel', { ...base, material: 'metal', face: 'micro', holes: { D: front.D, r: front.dh / 2, pattern: 'square' } }];
+    if (front.k === 'slotted') return ['panel', { ...base, material: 'wood', face: 'slots', slots: { pitch: front.pitch, w: front.w } }];
+    if (front.k === 'membrane') return ['panel', { ...base, material: 'wood', face: 'plain' }];
+    if (front.k === 'fabric') return ['panel', { ...base, material: 'fabric', face: 'fabric' }];
+    if (front.k === 'porous') return ['panel', { ...base, material: 'wool', face: 'plain' }];
+    return ['panel', { ...base, material: 'board', face: 'plain', note: 'The front layer is air.' }];
+  },
+  build(v) {
+    const notes = [];
+    for (const l of layers) for (const f of KINDS[l.k].fields) {
+      if (!Number.isFinite(l[f[0]]) || l[f[0]] < f[4] || l[f[0]] > f[5]) return { error: `Layer "${KINDS[l.k].label}": ${f[1]} must be between ${f[4]} and ${f[5]} ${f[2]}.` };
+    }
+    for (const l of layers) {
+      if (l.k === 'perforated' && l.D <= l.dh) return { error: 'Perforated sheet: the hole spacing must be more than the hole diameter.' };
+      if (l.k === 'mpp' && l.D <= l.dh) return { error: 'Microperforated sheet: the hole spacing must be more than the hole diameter.' };
+      if (l.k === 'slotted' && l.pitch <= l.w) return { error: 'Slotted sheet: the slot pitch must be more than the slot width.' };
+    }
+    const toCore = (l) => {
+      switch (l.k) {
+        case 'fabric': return { type: 'sheet', sheet: AC.resistiveFacing({ R: l.R, m: l.m / 1000 }) };
+        case 'porous': return { type: 'porous', thickness: l.t / 1000, sigma: l.sigma, model: l.model || 'db' };
+        case 'air': return { type: 'air', thickness: l.t / 1000 };
+        case 'perforated': return { type: 'sheet', sheet: AC.perforatedFacing({ t: l.t / 1000, a: l.dh / 2000, D: l.D / 1000 }) };
+        case 'slotted': return { type: 'sheet', sheet: AC.slottedFacing({ t: l.t / 1000, w: l.w / 1000, pitch: l.pitch / 1000 }) };
+        case 'mpp': return { type: 'sheet', sheet: AC.microperforatedFacing({ t: l.t / 1000, a: l.dh / 2000, D: l.D / 1000 }) };
+        case 'membrane': return { type: 'sheet', sheet: AC.membraneFacing({ m: l.m }) };
+      }
+    };
+    const free = v.backing === 'free';
+    const core = layers.map(toCore).reverse(); // wall first
+    if (!free) {
+      let i = 0;
+      while (i < layers.length && core[i].type === 'sheet') i++;
+      if (i > 0) notes.push({ level: 'warn', text: 'The layer next to the wall is a sheet. A sheet directly against a rigid wall has no effect. Add an air gap or a porous layer behind it.' });
+      if (!core.some((l) => l.type !== 'sheet')) return { error: 'With a wall back, add at least one porous layer or air gap.' };
+    } else notes.push({ text: 'Open back: the result is for sound from the front only. Sound that goes through the absorber is not counted as absorbed.' });
+    const parts = layers.map((l) => {
+      if (l.k === 'porous') return { kind: 'porous', label: 'Porous', mm: l.t };
+      if (l.k === 'air') return { kind: 'air', label: 'Air', mm: l.t };
+      if (l.k === 'fabric') return { kind: 'membrane', label: 'Fabric', mm: 1 };
+      if (l.k === 'membrane') return { kind: 'membrane', label: 'Sheet', mm: 3 };
+      return { kind: 'facing', label: l.k === 'mpp' ? 'MPP' : l.k === 'slotted' ? 'Slots' : 'Perf.', mm: l.t };
+    });
+    const depth = layers.reduce((s, l) => s + (l.t > 0 ? l.t : 0), 0);
+    return {
+      construction: { layers: core, free },
+      parts,
+      diagramOpts: { open: free },
+      short: `${layers.length} layers, ${Math.round(depth)} mm${free ? ', open back' : ''}`,
+      info: [['Total depth (layers with thickness)', UI.fmt(depth, 0) + ' mm'], ['Back', free ? 'Open air' : 'Rigid wall']],
+      notes,
+    };
+  },
+});
+</script>
+</body>
+</html>

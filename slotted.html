@@ -7,6 +7,7 @@
 <meta name="description" content="Calculate the sound absorption of a slotted panel or a slatted wall over a cavity with porous absorber.">
 <link rel="stylesheet" href="css/style.css">
 <script src="js/core.js"></script>
+<script src="js/visual.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/absorber.js"></script>
 </head>
@@ -63,8 +64,14 @@ AbsorberPage.init(document.getElementById('calc'), {
     { id: 't', label: 'Panel thickness', unit: 'mm', value: 16, min: 0.1, max: 200 },
     { id: 'w', label: 'Slot width', unit: 'mm', value: 5, min: 0.05, max: 500 },
     { id: 'pitch', label: 'Slot pitch (centre to centre)', unit: 'mm', value: 50, min: 0.1, max: 2000 },
+    { id: 'look', label: 'Construction', type: 'select', value: 'slots', options: [
+      { value: 'slots', label: 'Slots cut in one panel' }, { value: 'slats', label: 'Separate slats with gaps' }] },
     ...AbsorberPage.cavityFields,
   ],
+  visual(v, b) {
+    return ['panel', { w: v.pw, h: v.ph, depth: v.t + v.depth, material: 'wood', face: v.look === 'slats' ? 'slats' : 'slots',
+      title: v.look === 'slats' ? 'Slat wall on a frame' : 'Slotted panel on a frame', slots: { pitch: v.pitch, w: v.w } }];
+  },
   build(v, a) {
     if (v.pitch <= v.w) return { error: 'The slot pitch must be more than the slot width.' };
     const fac = AC.slottedFacing({ t: v.t / 1000, w: v.w / 1000, pitch: v.pitch / 1000 });

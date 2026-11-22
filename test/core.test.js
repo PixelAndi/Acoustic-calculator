@@ -324,3 +324,138 @@ test('slot layout', () => {
   assert.ok(Math.abs(L.length - 0.55) < 1e-12);
   assert.ok(Math.abs(L.slatWidth - 0.045) < 1e-12);
 });
+
+/* ---------------- free layers, sheets, fabric ---------------- */
+test('free layer: nothing in the way gives α = 0 and τ = 1', () => {
+  const a = AC.air(20);
+  const r = AC.freeLayer(1000, 0.3, a, [], null);
+  assert.ok(Math.abs(r.alpha) < 1e-12 && Math.abs(r.tau - 1) < 1e-12);
+});
+
+test('free limp mass: oblique mass law τ = 1 / (1 + (ωm cosθ / 2ρc)²), no absorption', () => {
+  const a = AC.air(20);
+  const m = 5;
+  for (const [f, deg] of [[100, 0], [500, 30], [2000, 60]]) {
+    const th = (deg * Math.PI) / 180;
+    const r = AC.freeLayer(f, th, a, [], AC.membraneFacing({ m }));
+    const x = (2 * Math.PI * f * m * Math.cos(th)) / (2 * a.Z0);
+    assert.ok(Math.abs(r.tau - 1 / (1 + x * x)) < 1e-12, `${f} Hz ${deg}°`);
+    assert.ok(Math.abs(r.alpha) < 1e-12);
+  }
+});
+
+test('free resistive sheet R = 2ρc at normal incidence absorbs 50 %', () => {
+  const a = AC.air(20);
+  const r = AC.freeLayer(1000, 0, a, [], AC.resistiveFacing({ R: 2 * a.Z0 }));
+  assert.ok(Math.abs(r.alpha - 0.5) < 1e-12);
+  assert.ok(Math.abs(r.tau - 0.25) < 1e-12);
+});
+
+test('very thick free porous layer equals the same layer on a rigid wall', () => {
+  const a = AC.air(20);
+  const L = [{ type: 'porous', thickness: 1.5, sigma: 20000, model: 'miki' }];
+  for (const f of [500, 2000]) {
+    const free = AC.absorption(f, a, { layers: L, free: true }, { mode: 'angle', angleDeg: 30 }).alpha;
+    const wall = AC.absorption(f, a, { layers: L }, { mode: 'angle', angleDeg: 30 }).alpha;
+    assert.ok(Math.abs(free - wall) < 1e-6, `${f}: ${free} vs ${wall}`);
+  }
+});
+
+test('free porous layer: 0 ≤ α ≤ 1 and α + τ ≤ 1 (diffuse)', () => {
+  const a = AC.air(20);
+  const L = [{ type: 'porous', thickness: 0.05, sigma: 10000, model: 'miki' }];
+  for (const f of [63, 250, 1000, 4000]) {
+    const r = AC.absorption(f, a, { layers: L, free: true }, { mode: 'diffuse' });
+    assert.ok(r.alpha >= 0 && r.alpha <= 1 && r.alpha + r.tau <= 1 + 1e-9, `${f}: ${r.alpha} ${r.tau}`);
+  }
+});
+
+test('a sheet layer gives the same result as the same sheet used as facing', () => {
+  const a = AC.air(20);
+  const fac = AC.perforatedFacing({ t: 0.012, a: 0.004, D: 0.032 });
+  const L = [{ type: 'air', thickness: 0.05 }, { type: 'porous', thickness: 0.03, sigma: 10000 }];
+  for (const f of [125, 400, 1600]) {
+    const A1 = AC.absorption(f, a, { layers: L, facing: fac }).alpha;
+    const A2 = AC.absorption(f, a, { layers: [...L, { type: 'sheet', sheet: fac }] }).alpha;
+    assert.ok(Math.abs(A1 - A2) < 1e-12);
+  }
+});
+
+test('limp fabric: Z → R at high frequency, Z → jωm at low frequency', () => {
+  const fab = AC.resistiveFacing({ R: 200, m: 0.3 });
+  const hi = fab.impedance(1e6);
+  assert.ok(Math.abs(hi.re - 200) < 0.01 && Math.abs(hi.im) < 0.1);
+  const lo = fab.impedance(1);
+  assert.ok(Math.abs(lo.im - 2 * Math.PI * 0.3) < 1e-3);
+  assert.deepEqual(AC.resistiveFacing({ R: 150 }).impedance(500), { re: 150, im: 0 });
+});
+
+/* ---------------- Helmholtz resonator ---------------- */
+test('single Helmholtz resonator with flanged ends', () => {
+  const r = AC.helmholtzResonator({ a: 0.01, L: 0.05, V: 0.001, c: 343 });
+  const Leff = 0.05 + 2 * 0.8488 * 0.01;
+  const f0 = (343 / (2 * Math.PI)) * Math.sqrt((Math.PI * 1e-4) / (0.001 * Leff));
+  assert.ok(Math.abs(r.f0 - f0) < 1e-9);
+  assert.ok(Math.abs(r.f0 - 118.2) < 0.2, `f0 = ${r.f0}`);
+});
+
+/* ---------------- diffusers ---------------- */
+test('QRD and PRD sequences for N = 7', () => {
+  assert.deepEqual(AC.qrdSequence(7), [0, 1, 4, 2, 2, 4, 1]);
+  const p = AC.prdSequence(7);
+  assert.equal(p.g, 3);
+  assert.deepEqual(p.seq, [3, 2, 6, 4, 5, 1]);
+  assert.equal(AC.primitiveRoot(11), 2);
+  assert.equal(AC.primitiveRoot(13), 2);
+  assert.ok(AC.isPrime(17) && !AC.isPrime(15));
+});
+
+test('QRD depths: d_n = s_n λ0 / 2N', () => {
+  const d = AC.diffuserDepths([0, 1, 4, 2, 2, 4, 1], 7, 500, 343);
+  assert.ok(Math.abs(d[2] - (4 * 0.686) / 14) < 1e-12);
+});
+
+test('diffusion coefficient: equal energies → 1, one direction → 0', () => {
+  assert.ok(Math.abs(AC.diffusionCoefficient([1, 1, 1, 1, 1]) - 1) < 1e-12);
+  assert.ok(Math.abs(AC.diffusionCoefficient([1, 0, 0, 0, 0])) < 1e-12);
+});
+
+test('QRD at f = N·f0 scatters like a flat surface (all phases are multiples of 2π)', () => {
+  const N = 7, f0 = 500, c = 343;
+  const depths = AC.diffuserDepths(AC.qrdSequence(N), N, f0, c);
+  const opt = { depths, w: 0.05, tf: 0.002, periods: 2, f: N * f0, c };
+  const q = AC.diffuserPolar(opt).points;
+  const fl = AC.diffuserPolar({ ...opt, flat: true }).points;
+  q.forEach((p, i) => assert.ok(Math.abs(p.energy - fl[i].energy) <= 1e-9 * fl[i].energy + 1e-15));
+});
+
+test('QRD scatters more evenly than a flat plate at the design frequency', () => {
+  const N = 7, f0 = 500, c = 343;
+  const depths = AC.diffuserDepths(AC.qrdSequence(N), N, f0, c);
+  const angles = Array.from({ length: 37 }, (_, i) => -90 + 5 * i);
+  const opt = { depths, w: 0.06, tf: 0, periods: 3, f: 2 * f0, c, angles };
+  const dq = AC.diffusionCoefficient(AC.diffuserPolar(opt).points.map((p) => p.energy));
+  const df = AC.diffusionCoefficient(AC.diffuserPolar({ ...opt, flat: true }).points.map((p) => p.energy));
+  assert.ok(dq > df + 0.1, `QRD ${dq} flat ${df}`);
+});
+
+test('skyline plane cut: at f = N·f0 it scatters like a flat surface; at f0 it is more diffuse', () => {
+  const N = 7, f0 = 600, c = 343;
+  const lam = c / f0;
+  const grid = AC.qrd2DSequence(N).map((col) => col.map((s) => (s * lam) / (2 * N)));
+  const base = { grid, w: 0.04, periods: 2, c };
+  const q = AC.diffuserPolar2DCut({ ...base, f: N * f0 }).points;
+  const fl = AC.diffuserPolar2DCut({ ...base, f: N * f0, flat: true }).points;
+  q.forEach((p, i) => assert.ok(Math.abs(p.energy - fl[i].energy) <= 1e-9 * fl[i].energy + 1e-15));
+  const e = (pts) => AC.diffusionCoefficient(pts.map((p) => p.energy));
+  const dq = e(AC.diffuserPolar2DCut({ ...base, f: 2 * f0 }).points);
+  const df = e(AC.diffuserPolar2DCut({ ...base, f: 2 * f0, flat: true }).points);
+  assert.ok(dq > df, `${dq} vs ${df}`);
+});
+
+test('1D polar via the 2D cut equals diffuserPolar for a one-row grid without fins', () => {
+  const depths = AC.diffuserDepths(AC.qrdSequence(7), 7, 500, 343);
+  const a = AC.diffuserPolar({ depths, w: 0.05, tf: 0, periods: 2, f: 1300, c: 343 }).points;
+  const b = AC.diffuserPolar2DCut({ grid: depths.map((d) => [d]), w: 0.05, periods: 2, f: 1300, c: 343 }).points;
+  a.forEach((p, i) => assert.ok(Math.abs(p.energy - b[i].energy) < 1e-12 * Math.max(1, p.energy)));
+});

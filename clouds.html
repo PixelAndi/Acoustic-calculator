@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ceiling Clouds and Baffles</title>
+<meta name="description" content="Calculate the equivalent sound absorption area of flat ceiling clouds, tilted clouds and vertical hanging baffles made of porous material.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/visual.js"></script>
+<script src="js/ui.js"></script>
+</head>
+<body>
+<main>
+  <h1>Ceiling clouds, tilted clouds and baffles</h1>
+  <p class="lead">This calculator gives the sound absorption of porous panels that hang in a room: horizontal clouds, tilted clouds and vertical baffles. The result is the equivalent absorption area of each object in m².</p>
+
+  <div class="calc">
+    <div class="card"><h2>Inputs</h2><div id="form"></div>
+      <div class="btn-row"><button class="btn" id="link" type="button">Copy link to these inputs</button></div>
+    </div>
+    <div>
+      <div class="card"><h2>What it looks like</h2><div id="view" class="panel-view"></div><div id="view2" class="panel-view" style="margin-top:.6rem"></div></div>
+      <div class="card"><h2>Results</h2><div id="kpis"></div><div id="chart"></div>
+        <div class="btn-row"><button class="btn" id="csv" type="button">Download CSV</button><button class="btn primary" id="save" type="button">Save result for other pages</button></div>
+        <div class="derived" id="saveMsg" role="status"></div>
+        <div id="notes"></div></div>
+      <div class="card"><h2>Results by octave band</h2><div id="table"></div></div>
+      <div class="card no-print"><h2>Add to project document</h2>
+        <div class="field full"><label for="pj-label">Name</label><div class="input-wrap"><input id="pj-label" type="text" maxlength="80" placeholder="For example: Office clouds"></div></div>
+        <div class="btn-row"><button class="btn primary" id="pj-add" type="button">Add to project</button></div>
+        <div class="derived" id="pjMsg" role="status"></div>
+      </div>
+    </div>
+  </div>
+
+  <section class="doc">
+    <h2>How to use</h2>
+    <ol>
+      <li>Select the type: horizontal cloud, tilted cloud or vertical baffle.</li>
+      <li>Type the size and thickness of one panel, and the flow resistivity of the material.</li>
+      <li>For a cloud, type the distance from the ceiling to the top of the panel. For a tilted cloud, type the tilt angle. This is the distance at the high edge.</li>
+      <li>Type the quantity.</li>
+      <li>Read the equivalent absorption area per object and in total. Use the total in the <a href="reverberation.html">reverberation calculator</a>.</li>
+    </ol>
+
+    <h2>Description</h2>
+    <p>A cloud is a panel that hangs below the ceiling. Sound reaches its lower face, its edges and, through the gap, its upper face. A baffle hangs vertically. Sound reaches both of its faces.</p>
+    <p>A tilted cloud has a gap that increases from one edge to the other. The tilt also changes the direction of the reflection from the panel. A reflection from a panel that is tilted by φ goes 2φ from its usual direction. Use this to send sound to the audience, or away from a wall.</p>
+    <p>The absorption of an object is given as an equivalent absorption area A (m²), not as α. Laboratories measure hanging objects in the same way (ISO 354).</p>
+
+    <h2>Method</h2>
+    <p>The calculator gives two models. Both use the diffuse-field (Paris) integral and the Delany &amp; Bazley or Miki model for the porous material.</p>
+    <div class="formula">Model A – ceiling behind the cloud (one face, with air gap):
+  A = S · α_A,   α_A = layer + air gap g + rigid ceiling
+  Tilted cloud: the panel is divided into 8 strips; each strip has its own gap g_i;
+  α_A is the mean of the strip values.
+
+Model B – free in the room (both faces):
+  A = 2 S · α_free,   α_free = 1 − |R|² − |t|²   (transfer matrix, air on both sides)
+
+S = area of one face of the panel.</div>
+    <p>Model A is a good estimate for a cloud near the ceiling, where little sound reaches the upper face from the sides. Model B is for baffles and for clouds far from the ceiling. Measured values can be higher than both models, because of the edge effect.</p>
+
+    <h2>Limits</h2>
+    <ul>
+      <li>Neither model includes the edges. Real panels absorb more per square metre than an infinite layer, because sound bends into the edges (edge effect). Small panels have a larger edge effect.</li>
+      <li>The strip method for a tilted cloud is an approximation.</li>
+      <li>Baffles that hang close together shield each other. The model does not include this.</li>
+      <li>The model does not include a fabric that touches only the lower face, frames or supports.</li>
+      <li>For a final design, use values measured on the product (ISO 354).</li>
+    </ul>
+    <p class="refs">References: T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapters 2 and 5. ISO 354, measurement of sound absorption in a reverberation room (objects).</p>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+UI.copyLink($('link'));
+const OCT = { 125: [100, 125, 160], 250: [200, 250, 315], 500: [400, 500, 630], 1000: [800, 1000, 1250], 2000: [1600, 2000, 2500], 4000: [3150, 4000, 5000] };
+let last = null;
+
+const form = UI.form($('form'), [
+  { group: 'Type' },
+  { id: 'mode', label: 'Type', type: 'select', value: 'cloud', options: [
+    { value: 'cloud', label: 'Horizontal cloud' }, { value: 'tilted', label: 'Tilted cloud' }, { value: 'baffle', label: 'Vertical baffle' }] },
+  { group: 'Panel' },
+  { id: 'L', label: 'Length', unit: 'mm', value: 1200, min: 100, max: 10000, help: 'For a tilted cloud: the length in the direction of the tilt. For a baffle: the height.' },
+  { id: 'W', label: 'Width', unit: 'mm', value: 1200, min: 100, max: 10000 },
+  { id: 't', label: 'Thickness', unit: 'mm', value: 50, min: 5, max: 500 },
+  { id: 'sigma', label: 'Flow resistivity σ', unit: 'Pa·s/m²', value: 10000, min: 100, max: 1000000, exclusiveMin: true },
+  { id: 'model', label: 'Porous model', type: 'select', value: 'db', options: [{ value: 'db', label: 'Delany & Bazley (1970)' }, { value: 'miki', label: 'Miki (1990)' }] },
+  { id: 'fabR', label: 'Fabric cover, flow resistance', unit: 'Pa·s/m', value: 0, min: 0, max: 5000, help: 'Type 0 if the panel has no fabric. The fabric covers both faces.' },
+  { group: 'Position' },
+  { id: 'dHigh', label: 'Ceiling to top of panel', unit: 'mm', value: 300, min: 0, max: 10000, help: 'For a tilted cloud: at the high edge.' },
+  { id: 'tilt', label: 'Tilt angle', unit: '°', value: 15, min: 0, max: 60, showIf: (v) => v.mode === 'tilted' },
+  { id: 'qty', label: 'Quantity', unit: 'pcs', value: 6, min: 1, max: 10000 },
+  { id: 'use', label: 'Model for totals', type: 'select', value: 'A', options: [{ value: 'A', label: 'Model A (ceiling behind)' }, { value: 'B', label: 'Model B (free, both faces)' }], showIf: (v) => v.mode !== 'baffle' },
+  { group: 'Air' },
+  { id: 'temp', label: 'Air temperature', unit: '°C', value: 20, min: -20, max: 50 },
+], compute);
+
+function compute(v, ok) {
+  if (!ok) { UI.notes($('notes'), [{ level: 'error', text: 'One or more inputs are not correct. Correct the inputs that show in red.' }]); return; }
+  const a = AC.air(v.temp);
+  const baffle = v.mode === 'baffle';
+  const tilt = v.mode === 'tilted' ? v.tilt : 0;
+  const S = (v.L / 1000) * (v.W / 1000);
+  const fab = v.fabR > 0 ? AC.resistiveFacing({ R: v.fabR, m: 0 }) : null;
+  const por = { type: 'porous', thickness: v.t / 1000, sigma: v.sigma, model: v.model };
+  const freeLayers = fab ? [{ type: 'sheet', sheet: fab }, por, { type: 'sheet', sheet: fab }] : [por];
+  const M = tilt > 0 ? 8 : 1;
+  const gaps = Array.from({ length: M }, (_, i) => (v.dHigh + ((i + 0.5) / M) * v.L * Math.sin((tilt * Math.PI) / 180)) / 1000);
+  const inc = { mode: 'diffuse' };
+  const alphaA = (f) => {
+    if (baffle) return NaN;
+    let s = 0;
+    for (const g of gaps) {
+      const layers = [{ type: 'air', thickness: g }, ...(fab ? [{ type: 'sheet', sheet: fab }] : []), por];
+      s += AC.absorption(f, a, { layers, facing: fab }, inc).alpha;
+    }
+    return s / gaps.length;
+  };
+  const alphaB = (f) => AC.absorption(f, a, { layers: freeLayers, free: true }, inc).alpha;
+  const freqs = AC.logFrequencies(63, 5000, 12);
+  const cA = baffle ? [] : freqs.map((f) => [f, S * alphaA(f)]);
+  const cB = freqs.map((f) => [f, 2 * S * alphaB(f)]);
+  const third = {};
+  for (const bands of Object.values(OCT)) for (const n of bands) third[n] = {
+    A: baffle ? NaN : AC.thirdOctaveBandMean(alphaA, n, 5),
+    B: AC.thirdOctaveBandMean(alphaB, n, 5),
+  };
+  const oct = {};
+  for (const [o, bands] of Object.entries(OCT)) oct[o] = {
+    aA: bands.reduce((s, n) => s + third[n].A, 0) / 3,
+    aB: bands.reduce((s, n) => s + third[n].B, 0) / 3,
+  };
+  const use = baffle ? 'B' : v.use;
+  const objA = (o) => (use === 'A' ? S * oct[o].aA : 2 * S * oct[o].aB);
+  last = { v, S, oct, cA, cB, use, objA, baffle, tilt };
+
+  // Drawing
+  VIS.cloud($('view'), { mode: baffle ? 'baffle' : 'cloud', L: v.L, t: v.t, tilt, dHigh: v.dHigh });
+  VIS.panel($('view2'), { w: v.W, h: v.L, depth: v.t, material: 'fabric', face: 'fabric', title: baffle ? 'One baffle (face)' : 'One cloud (seen from below)' });
+
+  const mid = (fn) => (fn(500) + fn(1000)) / 2;
+  UI.kpis($('kpis'), [
+    { label: 'Panel face area S', value: UI.fmt(S, 2) + ' m²', sub: tilt ? 'plan area ' + UI.fmt(S * Math.cos((tilt * Math.PI) / 180), 2) + ' m²' : '' },
+    ...(baffle ? [] : [{ label: 'A per cloud, model A (500–1k)', value: UI.fmt(mid((o) => S * oct[o].aA), 2) + ' m²' }]),
+    { label: `A per ${baffle ? 'baffle' : 'cloud'}, model B (500–1k)`, value: UI.fmt(mid((o) => 2 * S * oct[o].aB), 2) + ' m²' },
+    { label: `Total, ${v.qty} pcs (500–1k)`, value: UI.fmt(mid(objA) * v.qty, 1) + ' m²', sub: 'model ' + use },
+  ]);
+  const series = [];
+  if (!baffle) series.push({ name: 'Model A: ceiling behind (one face)', points: cA });
+  series.push({ name: 'Model B: free, both faces', points: cB, dash: !baffle });
+  const yMax = Math.max(0.5, ...cA.map((p) => p[1]), ...cB.map((p) => p[1]));
+  const step = yMax > 4 ? 1 : yMax > 2 ? 0.5 : 0.25;
+  const top = Math.ceil((yMax * 1.05) / step) * step;
+  const yt = []; for (let y = 0; y <= top + 1e-9; y += step) yt.push(+y.toFixed(2));
+  UI.chart($('chart'), { series, legend: true, xMin: 63, xMax: 5000, yMin: 0, yMax: top, xTicks: [63, 125, 250, 500, 1000, 2000, 4000],
+    xFmt: (x, h) => (h ? UI.fmtHz(x) : UI.freqTickFmt(x)), yTicks: yt, yFmt: (y, h) => UI.fmt(y, 2) + (h ? ' m²' : ''),
+    xLabel: 'Frequency (Hz)', yLabel: 'A per object (m²)', ariaLabel: 'Equivalent absorption area per object' });
+
+  const head = ['Octave (Hz)', ...(baffle ? [] : ['α model A', 'A model A (m²)']), 'α free (one face)', 'A model B (m²)', `Total ${v.qty} pcs (m²)`];
+  UI.table($('table'), head, Object.keys(OCT).map((o) => [o, ...(baffle ? [] : [UI.fmt(oct[o].aA), UI.fmt(S * oct[o].aA)]), UI.fmt(oct[o].aB), UI.fmt(2 * S * oct[o].aB), UI.fmt(objA(o) * v.qty, 1)]));
+
+  const n = [];
+  const k = v.model === 'miki' ? 1 : a.rho;
+  const fLo = 0.01 * v.sigma / k, fHi = v.sigma / k;
+  const lim = []; if (fLo > 63) lim.push('below ' + UI.fmtHz(fLo)); if (fHi < 5000) lim.push('above ' + UI.fmtHz(fHi));
+  if (lim.length) n.push({ level: 'warn', text: `The porous model is outside its tested range ${lim.join(' and ')}. Results there are less accurate.` });
+  if (!baffle && v.dHigh < 1) n.push({ level: 'warn', text: 'The panel touches the ceiling. Use the porous absorber page.' });
+  n.push({ text: 'The models do not include the edge effect. Real objects usually absorb more, mostly at low and middle frequencies.' });
+  if (tilt) n.push({ text: `The reflection of sound from directly below goes ${2 * tilt}° from vertical, towards the high edge.` });
+  UI.notes($('notes'), n);
+}
+
+$('csv').addEventListener('click', () => {
+  if (!last) return;
+  const rows = [['Frequency (Hz)', 'A model A (m2)', 'A model B (m2)']];
+  last.cB.forEach((p, i) => rows.push([p[0].toFixed(1), last.cA[i] ? last.cA[i][1].toFixed(4) : '', p[1].toFixed(4)]));
+  UI.downloadCsv('clouds-baffles.csv', [], rows);
+});
+$('save').addEventListener('click', () => {
+  if (!last) return;
+  const objectArea = {};
+  for (const o of Object.keys(OCT)) objectArea[o] = last.objA(o) * last.v.qty;
+  try { localStorage.setItem('ac-last-panel', JSON.stringify({ name: `${last.v.qty} × ${last.baffle ? 'baffle' : 'cloud'} (model ${last.use})`, objectArea, saved: new Date().toISOString() })); } catch (_) {}
+  $('saveMsg').innerHTML = 'Saved. Open the <a href="reverberation.html">reverberation</a> page and click "Load last panel result". The total area is added as extra absorption.';
+});
+$('pj-add').addEventListener('click', () => {
+  if (!last) return;
+  const v = last.v;
+  const S = last.S;
+  const octs = Object.keys(OCT);
+  const kind = last.baffle ? 'Vertical baffle' : last.tilt ? 'Tilted ceiling cloud' : 'Horizontal ceiling cloud';
+  const warnings = [
+    { level: 'WARNING', text: 'Panels that hang above people must not fall. Use a suspension system that is approved for the weight, with a safety margin. Attach it to the structure, not to a suspended ceiling grid, unless the grid is approved for the load.' },
+    { level: 'WARNING', text: 'Mineral wool and glass wool can cause irritation of the skin, eyes and lungs. Wear gloves, long sleeves, eye protection and a dust mask (FFP2 or better).' },
+    { level: 'CAUTION', text: 'Make sure that all materials agree with the fire rules of your local building code.' },
+  ];
+  const steps = [
+    `Cut the porous panel to ${v.L} × ${v.W} mm from ${v.t} mm material (σ ≈ ${v.sigma} Pa·s/m²).`,
+    'Install a light frame or edge profile, if the panel needs one. Attach suspension points to the frame, not to the wool.',
+    v.fabR > 0 ? 'Cover both faces and all edges with the fabric. Make sure that air goes through the fabric easily.' : 'Cover the panel with an acoustically transparent fabric or a facing if the fibres must be contained.',
+    last.baffle ? `Hang each baffle vertically, with ${v.dHigh} mm from the ceiling to the top edge.`
+      : last.tilt ? `Hang each cloud with ${v.dHigh} mm from the ceiling to the high edge and ${Math.round(v.dHigh + v.L * Math.sin(last.tilt * Math.PI / 180))} mm to the low edge (tilt ${last.tilt}°).`
+      : `Hang each cloud horizontally, with ${v.dHigh} mm from the ceiling to the top of the panel.`,
+    'Make sure that the panels are level (or at the correct tilt) and that the cables are tight.',
+  ];
+  const checks = [`Quantity: ${v.qty} pcs of ${v.L} × ${v.W} × ${v.t} mm.`, `Distance from ceiling: ${v.dHigh} mm. Measured: ______ mm`];
+  if (last.tilt) checks.push(`Tilt angle: ${last.tilt}°. Measured: ______ °`);
+  checks.push('The suspension is attached to the structure and is approved for the load.');
+  UI.project.addItem({
+    custom: true,
+    type: 'cloud',
+    page: 'clouds.html',
+    hash: location.hash,
+    label: $('pj-label').value.trim() || kind,
+    model: `${kind}, ${v.L} × ${v.W} × ${v.t} mm, σ ${v.sigma}`,
+    visual: ['cloud', { mode: last.baffle ? 'baffle' : 'cloud', L: v.L, t: v.t, tilt: last.tilt, dHigh: v.dHigh }],
+    kpis: [
+      { label: 'A per object (500–1k Hz)', value: UI.fmt((last.objA(500) + last.objA(1000)) / 2, 2) + ' m²', sub: 'model ' + last.use },
+      { label: `Total, ${v.qty} pcs (500–1k Hz)`, value: UI.fmt(((last.objA(500) + last.objA(1000)) / 2) * v.qty, 1) + ' m²' },
+    ],
+    rows: [
+      ['Type', kind], ['Panel size', `${v.L} × ${v.W} mm`], ['Thickness', v.t + ' mm'], ['Flow resistivity', v.sigma + ' Pa·s/m²'],
+      ['Ceiling to panel (high edge)', v.dHigh + ' mm'], ...(last.tilt ? [['Tilt', last.tilt + '°']] : []), ['Quantity', String(v.qty)],
+      ['Face area, one panel', UI.fmt(S, 2) + ' m²'], ['Porous material, total', `${UI.fmt(S * v.qty, 2)} m² (${UI.fmt(S * v.qty * v.t / 1000, 3)} m³)`],
+    ],
+    warnings, steps, checks,
+    chart: { series: [...(last.baffle ? [] : [{ name: 'Model A', points: last.cA.filter((_, i) => i % 2 === 0) }]), { name: 'Model B', points: last.cB.filter((_, i) => i % 2 === 0) }], yLabel: 'A per object (m²)', xMin: 63, xMax: 5000 },
+    table: { headers: ['Octave (Hz)', ...octs], rows: [['A per object (m²)', ...octs.map((o) => UI.fmt(last.objA(o), 2))], [`Total (m²)`, ...octs.map((o) => UI.fmt(last.objA(o) * v.qty, 1))]] },
+    inputs: [],
+    notes: ['A is the equivalent absorption area. The models do not include the edge effect.'],
+    panel: { w: v.W, h: v.L, qty: v.qty },
+    quantities: { area: S * v.qty, absorber: [{ t: v.t, area: S * v.qty, vol: S * v.qty * v.t / 1000, sigma: v.sigma }] },
+  });
+  $('pjMsg').innerHTML = 'Added. <a href="project.html">Open the project document</a>.';
+});
+</script>
+</body>
+</html>

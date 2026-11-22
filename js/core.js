@@ -144,32 +144,53 @@
    * @param {object|null} facing  object with impedance(f, a) (locally reacting sheet)
    * @param {object} opts { localReaction: boolean }
    */
+  /** Normal-direction wave values (k_x, Z_n) of a layer for a given angle. */
+  function layerWave(layer, f, thetaRad, a, opts) {
+    const p = layerProps(layer, f, a);
+    const kt = ((2 * Math.PI * f) / a.c) * Math.sin(thetaRad);
+    let kx = p.k;
+    let Zn = p.zc;
+    if (!opts.localReaction && kt !== 0) {
+      kx = sqrt(sub(mul(p.k, p.k), C(kt * kt, 0)));
+      Zn = div(mul(p.zc, p.k), kx);
+    }
+    return { kx, Zn, valid: p.valid };
+  }
+
+  /**
+   * Surface impedance (Pa s/m) of a layered absorber on a rigid wall.
+   * @param {number} f frequency (Hz)
+   * @param {number} thetaRad angle of incidence from the normal (rad)
+   * @param {object} a air object
+   * @param {Array} layers ordered from the WALL outwards. A layer is
+   *   { type: 'air'|'porous', thickness, sigma, model } or
+   *   { type: 'sheet', sheet: <facing object> } (thin sheet in series).
+   * @param {object|null} facing  object with impedance(f, a) (locally reacting sheet)
+   * @param {object} opts { localReaction: boolean }
+   */
   function surfaceImpedance(f, thetaRad, a, layers, facing, opts = {}) {
-    const k0 = (2 * Math.PI * f) / a.c;
-    const kt = k0 * Math.sin(thetaRad);
     let Z = null; // null = rigid wall (infinite impedance)
     let valid = true;
     for (const layer of layers) {
-      if (!(layer.thickness > 0)) continue;
-      const p = layerProps(layer, f, a);
-      if (!p.valid) valid = false;
-      let kx = p.k;
-      let Zn = p.zc;
-      if (!opts.localReaction && kt !== 0) {
-        kx = sqrt(sub(mul(p.k, p.k), C(kt * kt, 0)));
-        Zn = div(mul(p.zc, p.k), kx);
+      if (layer.type === 'sheet') {
+        // A sheet directly on the rigid wall has no effect (infinite + finite).
+        if (Z !== null) Z = add(Z, layer.sheet.impedance(f, a));
+        continue;
       }
-      const arg = scale(kx, layer.thickness);
+      if (!(layer.thickness > 0)) continue;
+      const w = layerWave(layer, f, thetaRad, a, opts);
+      if (!w.valid) valid = false;
+      const arg = scale(w.kx, layer.thickness);
       const s = sin(arg);
       const c = cos(arg);
       if (Z === null) {
         // Rigid backing: Z = -j Zn cot(kx d)
-        Z = div(mul(Zn, c), mul(J, s));
+        Z = div(mul(w.Zn, c), mul(J, s));
       } else {
         // Z_in = Zn (Z_L cos + j Zn sin) / (Zn cos + j Z_L sin)
-        const num = add(mul(Z, c), mul(J, mul(Zn, s)));
-        const den = add(mul(Zn, c), mul(J, mul(Z, s)));
-        Z = mul(Zn, div(num, den));
+        const num = add(mul(Z, c), mul(J, mul(w.Zn, s)));
+        const den = add(mul(w.Zn, c), mul(J, mul(Z, s)));
+        Z = mul(w.Zn, div(num, den));
       }
     }
     if (Z === null) Z = C(Infinity, Infinity);
@@ -177,6 +198,56 @@
     return { Z, valid };
   }
 
+  /* 2 × 2 complex transfer matrices, stored as [T11, T12, T21, T22]. */
+  const matMul = (A, B) => [
+    add(mul(A[0], B[0]), mul(A[1], B[2])),
+    add(mul(A[0], B[1]), mul(A[1], B[3])),
+    add(mul(A[2], B[0]), mul(A[3], B[2])),
+    add(mul(A[2], B[1]), mul(A[3], B[3])),
+  ];
+
+  /**
+   * Free-hanging construction (air on both sides): transfer-matrix method.
+   * Relates (p, v_x) on the incident side to the far side:
+   *   layer: [[cos k_x d, j Z_n sin k_x d], [j sin k_x d / Z_n, cos k_x d]]
+   *   sheet: [[1, Z_s], [0, 1]]
+   * With Z0n = ρc / cosθ on both sides:
+   *   Z_in = (T11 Z0n + T12) / (T21 Z0n + T22)
+   *   R = (Z_in − Z0n)/(Z_in + Z0n),  t = 2 Z0n / (T11 Z0n + T12 + Z0n (T21 Z0n + T22))
+   *   α = 1 − |R|² − |t|²,  τ = |t|²
+   * @param {Array} layers ordered from the far side to the incident side (same order as for a wall).
+   */
+  function freeLayer(f, thetaRad, a, layers, facing, opts = {}) {
+    let T = [ONE, ZERO, ZERO, ONE];
+    let valid = true;
+    const seq = [...layers];
+    if (facing) seq.push({ type: 'sheet', sheet: facing });
+    // Multiply from the incident side (last element) to the far side.
+    for (let i = seq.length - 1; i >= 0; i--) {
+      const layer = seq[i];
+      let M;
+      if (layer.type === 'sheet') M = [ONE, layer.sheet.impedance(f, a), ZERO, ONE];
+      else {
+        if (!(layer.thickness > 0)) continue;
+        const w = layerWave(layer, f, thetaRad, a, opts);
+        if (!w.valid) valid = false;
+        const arg = scale(w.kx, layer.thickness);
+        const s = sin(arg);
+        const c = cos(arg);
+        M = [c, mul(J, mul(w.Zn, s)), div(mul(J, s), w.Zn), c];
+      }
+      T = matMul(T, M);
+    }
+    const Z0n = C(a.Z0 / Math.cos(thetaRad), 0);
+    const num = add(mul(T[0], Z0n), T[1]);
+    const den = add(mul(T[2], Z0n), T[3]);
+    const Zin = div(num, den);
+    const R = div(sub(Zin, Z0n), add(Zin, Z0n));
+    const t = div(scale(Z0n, 2), add(num, mul(Z0n, den)));
+    const r2 = abs(R) ** 2;
+    const t2 = abs(t) ** 2;
+    return { R, t, alpha: 1 - r2 - t2, tau: t2, Z: Zin, valid };
+  }
   /** Pressure reflection factor and absorption coefficient for a surface impedance. */
   function reflection(Z, thetaRad, a) {
     if (!isFiniteC(Z)) return { R: ONE, alpha: 0 };
@@ -193,24 +264,31 @@
    */
   function absorption(f, a, construction, incidence = { mode: 'normal' }) {
     const opts = { localReaction: !!construction.localReaction };
-    const one = (theta) => {
-      const s = surfaceImpedance(f, theta, a, construction.layers, construction.facing, opts);
-      return { alpha: reflection(s.Z, theta, a).alpha, Z: s.Z, valid: s.valid };
-    };
+    const one = construction.free
+      ? (theta) => {
+          const r = freeLayer(f, theta, a, construction.layers, construction.facing, opts);
+          return { alpha: r.alpha, tau: r.tau, Z: r.Z, valid: r.valid };
+        }
+      : (theta) => {
+          const s = surfaceImpedance(f, theta, a, construction.layers, construction.facing, opts);
+          return { alpha: reflection(s.Z, theta, a).alpha, Z: s.Z, valid: s.valid };
+        };
     if (incidence.mode === 'diffuse') {
       // Paris formula: α_d = ∫0^{π/2} α(θ) sin(2θ) dθ  (midpoint rule, 0.5° steps)
       const n = 180;
       const h = Math.PI / 2 / n;
       let sum = 0;
+      let sumTau = 0;
       let valid = true;
       for (let i = 0; i < n; i++) {
         const th = (i + 0.5) * h;
         const r = one(th);
         if (!r.valid) valid = false;
         sum += r.alpha * Math.sin(2 * th) * h;
+        if (r.tau !== undefined) sumTau += r.tau * Math.sin(2 * th) * h;
       }
       const n0 = one(0);
-      return { alpha: sum, Z: n0.Z, valid };
+      return { alpha: sum, tau: construction.free ? sumTau : undefined, Z: n0.Z, valid };
     }
     const theta = incidence.mode === 'angle' ? ((incidence.angleDeg || 0) * Math.PI) / 180 : 0;
     return one(theta);
@@ -333,6 +411,185 @@
         return C(r, 2 * Math.PI * f * m);
       },
     };
+  }
+
+  /**
+   * Thin porous sheet (fabric, fleece, acoustic scrim).
+   * R = flow resistance (Pa s/m = rayl), m = surface mass (kg/m²).
+   * Limp sheet: the sheet moves with the air, so the flow resistance acts in
+   * parallel with the mass reactance:  Z = jωm R / (R + jωm).
+   * m = 0 means a sheet that is held still (stretched or bonded): Z = R.
+   */
+  function resistiveFacing({ R, m = 0 }) {
+    return {
+      kind: 'resistive',
+      impedance(f) {
+        if (!(m > 0)) return C(R, 0);
+        const X = C(0, 2 * Math.PI * f * m);
+        return div(scale(X, R), add(C(R, 0), X));
+      },
+    };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Single Helmholtz resonator (bottle or box)                          */
+  /* ------------------------------------------------------------------ */
+  /**
+   * f0 = (c/2π) √(S / (V L′)),  S = π a²,  L′ = L + end corrections.
+   * End correction of one end: 0.85 a (flanged, Rayleigh), 0.61 a (unflanged, Levine & Schwinger).
+   */
+  function helmholtzResonator({ a: r, L, V, c, outer = 'flanged', inner = 'flanged' }) {
+    const end = (k) => (k === 'unflanged' ? 0.6133 : 0.8488) * r;
+    const Leff = L + end(outer) + end(inner);
+    const S = Math.PI * r * r;
+    const f0 = (c / (2 * Math.PI)) * Math.sqrt(S / (V * Leff));
+    return { f0, Leff, S, ka: ((2 * Math.PI * f0) / c) * Math.cbrt(V) };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Schroeder diffusers                                                 */
+  /* ------------------------------------------------------------------ */
+  function isPrime(n) {
+    if (n < 2 || n % 1) return false;
+    for (let i = 2; i * i <= n; i++) if (n % i === 0) return false;
+    return true;
+  }
+  /** Smallest primitive root of a prime N. */
+  function primitiveRoot(N) {
+    const phi = N - 1;
+    const factors = [];
+    let x = phi;
+    for (let p = 2; p * p <= x; p++)
+      if (x % p === 0) {
+        factors.push(p);
+        while (x % p === 0) x /= p;
+      }
+    if (x > 1) factors.push(x);
+    const powmod = (b, e, m) => {
+      let r = 1;
+      b %= m;
+      while (e > 0) {
+        if (e & 1) r = (r * b) % m;
+        b = (b * b) % m;
+        e >>= 1;
+      }
+      return r;
+    };
+    for (let g = 2; g < N; g++) if (factors.every((q) => powmod(g, phi / q, N) !== 1)) return g;
+    return null;
+  }
+  /** Quadratic residue sequence s_n = n² mod N, n = 0 … N−1. */
+  function qrdSequence(N) {
+    return Array.from({ length: N }, (_, n) => (n * n) % N);
+  }
+  /** Primitive root sequence s_n = g^n mod N, n = 1 … N−1. */
+  function prdSequence(N) {
+    const g = primitiveRoot(N);
+    const out = [];
+    let v = 1;
+    for (let n = 1; n < N; n++) {
+      v = (v * g) % N;
+      out.push(v);
+    }
+    return { g, seq: out };
+  }
+  /** 2D (skyline) quadratic residue: s_{n,m} = (n² + m²) mod N. */
+  function qrd2DSequence(N) {
+    return Array.from({ length: N }, (_, n) => Array.from({ length: N }, (_, m) => (n * n + m * m) % N));
+  }
+  /** Well depths d_n = s_n λ0 / (2N)  (Cox & D'Antonio ch. 10). */
+  function diffuserDepths(seq, N, f0, c) {
+    const lambda0 = c / f0;
+    return seq.map((s) => (s * lambda0) / (2 * N));
+  }
+
+  /**
+   * Far-field scattering of a 1D well diffuser, normal incidence
+   * (Fourier / Kirchhoff approximation, Cox & D'Antonio ch. 9–10).
+   * Each well n has width w, depth d_n and reflection factor R_n = exp(−2jk d_n).
+   * Fins of width tf have R = 1. The pattern repeats 'periods' times.
+   *   p(θ) ∝ Σ_e R_e · w_e · sinc(k w_e sinθ / 2) · exp(j k x_e sinθ)
+   * @returns array of { deg, level } (energy |p|², not normalised)
+   */
+  function diffuserPolar({ depths, w, tf = 0, periods = 1, f, c, angles = null, flat = false }) {
+    const k = (2 * Math.PI * f) / c;
+    const elems = [];
+    let x = 0;
+    for (let p = 0; p < periods; p++)
+      for (const d of depths) {
+        if (tf > 0) {
+          elems.push({ x: x + tf / 2, w: tf, d: 0 });
+          x += tf;
+        }
+        elems.push({ x: x + w / 2, w, d: flat ? 0 : d });
+        x += w;
+      }
+    const width = x;
+    const degs = angles || Array.from({ length: 37 }, (_, i) => -90 + 5 * i);
+    return {
+      width,
+      points: degs.map((deg) => {
+        const st = Math.sin((deg * Math.PI) / 180);
+        let re = 0;
+        let im = 0;
+        for (const e of elems) {
+          const u = (k * e.w * st) / 2;
+          const sinc = u === 0 ? 1 : Math.sin(u) / u;
+          const ph = k * e.x * st - 2 * k * e.d;
+          re += e.w * sinc * Math.cos(ph);
+          im += e.w * sinc * Math.sin(ph);
+        }
+        return { deg, energy: re * re + im * im };
+      }),
+    };
+  }
+
+  /**
+   * Plane cut (scattering in the x–z plane) of a 2D block (skyline) diffuser, normal incidence,
+   * Fourier / Kirchhoff approximation. grid[n][m] = block height (m) of the block in column n, row m.
+   * Each column n acts as one element with mean reflection factor  R̄_n = (1/M) Σ_m exp(−2jk h_nm).
+   */
+  function diffuserPolar2DCut({ grid, w, periods = 1, f, c, angles = null, flat = false }) {
+    const k = (2 * Math.PI * f) / c;
+    const cols = [];
+    for (let p = 0; p < periods; p++)
+      for (const col of grid) {
+        let re = 0;
+        let im = 0;
+        for (const h of col) {
+          const ph = flat ? 0 : -2 * k * h;
+          re += Math.cos(ph);
+          im += Math.sin(ph);
+        }
+        cols.push([re / col.length, im / col.length]);
+      }
+    const degs = angles || Array.from({ length: 37 }, (_, i) => -90 + 5 * i);
+    return {
+      width: cols.length * w,
+      points: degs.map((deg) => {
+        const st = Math.sin((deg * Math.PI) / 180);
+        const u = (k * w * st) / 2;
+        const sinc = u === 0 ? 1 : Math.sin(u) / u;
+        let re = 0;
+        let im = 0;
+        cols.forEach(([cr, ci], i) => {
+          const ph = k * (i + 0.5) * w * st;
+          const cp = Math.cos(ph);
+          const sp = Math.sin(ph);
+          re += w * sinc * (cr * cp - ci * sp);
+          im += w * sinc * (cr * sp + ci * cp);
+        });
+        return { deg, energy: re * re + im * im };
+      }),
+    };
+  }
+
+  /** Directional diffusion coefficient (ISO 17497-2 autocorrelation form) from energies. */
+  function diffusionCoefficient(energies) {
+    const n = energies.length;
+    const s1 = energies.reduce((a, b) => a + b, 0);
+    const s2 = energies.reduce((a, b) => a + b * b, 0);
+    return (s1 * s1 - s2) / ((n - 1) * s2);
   }
 
   /* ------------------------------------------------------------------ */
@@ -614,6 +871,7 @@
     miki,
     POROUS_MODELS,
     surfaceImpedance,
+    freeLayer,
     reflection,
     absorption,
     holeOpenArea,
@@ -622,6 +880,17 @@
     microperforatedFacing,
     maaApproxImpedance,
     membraneFacing,
+    resistiveFacing,
+    helmholtzResonator,
+    isPrime,
+    primitiveRoot,
+    qrdSequence,
+    prdSequence,
+    qrd2DSequence,
+    diffuserDepths,
+    diffuserPolar,
+    diffuserPolar2DCut,
+    diffusionCoefficient,
     holeLayout,
     slotLayout,
     helmholtzFrequency,

@@ -12,6 +12,9 @@
     slotted: 'Slotted panel absorber',
     microperforated: 'Microperforated panel absorber',
     membrane: 'Membrane absorber',
+    multilayer: 'Multilayer absorber',
+    cloud: 'Cloud or baffle',
+    diffuser: 'Diffuser',
   };
 
   let P = UI.project.load();
@@ -23,6 +26,15 @@
   /* Build data and instructions for one design                          */
   /* ------------------------------------------------------------------ */
   function buildData(item) {
+    if (item.custom)
+      return {
+        rows: item.rows,
+        warnings: item.warnings,
+        steps: item.steps,
+        checks: item.checks,
+        qty: { area: (item.quantities && item.quantities.area) || 0, absorber: (item.quantities && item.quantities.absorber) || [], holes: 0, sheet: null },
+      };
+    if (item.type === 'multilayer') return buildMultilayer(item);
     const v = item.values;
     const W = item.panel.w;
     const H = item.panel.h;
@@ -183,6 +195,81 @@
     return { rows, warnings, steps, checks, qty };
   }
 
+  /** Build data for a multilayer design (layers stored in item.extra.L, room side first). */
+  function buildMultilayer(item) {
+    const W = item.panel.w;
+    const H = item.panel.h;
+    const Q = item.panel.qty;
+    const areaOne = (W * H) / 1e6;
+    let layers = [];
+    try {
+      layers = JSON.parse((item.extra && item.extra.L) || '[]');
+    } catch (_) {
+      layers = [];
+    }
+    const free = item.values.backing === 'free';
+    const rows = [
+      ['Panel size (width × height)', `${fmt(W, 0)} × ${fmt(H, 0)} mm`],
+      ['Quantity', String(Q)],
+      ['Total area', fmt(areaOne * Q, 2) + ' m²'],
+      ...(item.extraRows || []),
+      ['Back', free ? 'Open air (hangs free)' : 'Rigid wall'],
+    ];
+    const depth = layers.reduce((s, l) => s + (l.t > 0 ? l.t : 0), 0);
+    rows.push(['Total depth', mm(depth)]);
+    const qty = { area: areaOne * Q, absorber: [], holes: 0, sheet: null };
+    const warnings = [];
+    if (layers.some((l) => l.k === 'porous'))
+      warnings.push({ level: 'WARNING', text: 'Mineral wool and glass wool can cause irritation of the skin, eyes and lungs. Wear gloves, long sleeves, eye protection and a dust mask (FFP2 or better).' });
+    warnings.push({ level: 'WARNING', text: 'Wear eye protection and ear protection when you use power tools.' });
+    warnings.push({ level: 'CAUTION', text: 'Make sure that all materials agree with the fire rules of your local building code.' });
+    warnings.push({ level: 'CAUTION', text: 'Make sure that the fixings can hold the weight of the panels.' });
+    const steps = [`Make a frame of ${fmt(W, 0)} × ${fmt(H, 0)} mm with an inner depth of ${mm(depth)}.`];
+    if (!free) steps.push('Seal the frame joints. The back is the wall. If the wall is not flat and solid, add a rigid back board.');
+    steps.push(free ? 'Install the layers in this order, from the back to the front:' : 'Install the layers in this order, from the wall to the room:');
+    const back = [...layers].reverse();
+    back.forEach((l, i) => {
+      const n = layers.length - i;
+      let s;
+      switch (l.k) {
+        case 'porous':
+          s = `Layer ${n}: put ${mm(l.t)} of porous material (σ ≈ ${fmt(l.sigma, 0)} Pa·s/m²). Do not compress it.`;
+          qty.absorber.push({ t: l.t, area: areaOne * Q, vol: areaOne * Q * (l.t / 1000), sigma: l.sigma });
+          break;
+        case 'air':
+          s = `Layer ${n}: keep an air gap of ${mm(l.t)}. Use spacers or battens.`;
+          break;
+        case 'fabric':
+          s = `Layer ${n}: stretch the fabric (flow resistance ≈ ${l.R} Pa·s/m) over the frame.`;
+          break;
+        case 'perforated': {
+          const L = AC.holeLayout({ W: W / 1000, H: H / 1000, D: l.D / 1000, r: l.dh / 2000, pattern: 'square' });
+          qty.holes += L.total * Q;
+          s = `Layer ${n}: install a ${mm(l.t, 1)} perforated sheet with ${fmt(L.total, 0)} holes of Ø${mm(l.dh, 1)} on a ${mm(l.D, 1)} square grid (first hole ${mm(l.D / 2, 1)} from the edge).`;
+          break;
+        }
+        case 'slotted': {
+          const L = AC.slotLayout({ W: W / 1000, H: H / 1000, pitch: l.pitch / 1000, w: l.w / 1000 });
+          s = `Layer ${n}: install a ${mm(l.t, 1)} slotted sheet with ${L.count} slots, ${mm(l.w, 1)} wide, at ${mm(l.pitch, 1)} centres.`;
+          break;
+        }
+        case 'mpp':
+          s = `Layer ${n}: install a ${mm(l.t, 2)} microperforated sheet (Ø${mm(l.dh, 2)} holes at ${mm(l.D, 2)} centres). Do not paint it.`;
+          break;
+        case 'membrane':
+          s = `Layer ${n}: install a closed sheet of ${l.m} kg/m². Attach it at the edges only.`;
+          break;
+        default:
+          s = `Layer ${n}: ${l.k}`;
+      }
+      steps.push(s);
+    });
+    steps.push('Attach every sheet so that it does not rattle. Seal the edges of each air gap.');
+    steps.push(free ? 'Hang the panel with a suspension system that is approved for its weight.' : 'Attach the panel to the wall.');
+    const checks = [`Total depth is ${mm(depth)}. Measured: ______ mm`, 'The layers are in the correct order.', `Quantity: ${Q} panels of ${fmt(W, 0)} × ${fmt(H, 0)} mm.`];
+    return { rows, warnings, steps, checks, qty };
+  }
+
   /* ------------------------------------------------------------------ */
   /* Rendering                                                           */
   /* ------------------------------------------------------------------ */
@@ -241,9 +328,9 @@
       `${fmt(it.panel.w, 0)} × ${fmt(it.panel.h, 0)}`,
       String(it.panel.qty),
       fmt(datas[i].qty.area, 2),
-      it.ratings.nrc !== null ? fmt(it.ratings.nrc) : '–',
-      it.ratings.aw !== null ? fmt(it.ratings.aw) + (it.ratings.indicators ? ` (${it.ratings.indicators})` : '') : '–',
-      `${fmt(it.peak[1])} at ${fmtHz(it.peak[0])}`,
+      it.ratings && it.ratings.nrc !== null ? fmt(it.ratings.nrc) : '–',
+      it.ratings && it.ratings.aw !== null ? fmt(it.ratings.aw) + (it.ratings.indicators ? ` (${it.ratings.indicators})` : '') : '–',
+      it.peak ? `${fmt(it.peak[1])} at ${fmtHz(it.peak[0])}` : '–',
     ]);
     const tbox = el('div');
     UI.table(tbox, ['#', 'Panel', 'Type', 'Size (mm)', 'Qty', 'Area (m²)', 'NRC', 'αw', 'Peak α'], rows);
@@ -309,25 +396,48 @@
       });
       return el('label', { class: 'size-field' }, label + ' ', inp, ' ' + unit);
     };
-    sec.append(el('div', { class: 'size-row no-print' }, num('Width', 'w', 'mm', 1), num('Height', 'h', 'mm', 1), num('Quantity', 'qty', 'pcs', 1)));
+    if (!it.custom) sec.append(el('div', { class: 'size-row no-print' }, num('Width', 'w', 'mm', 1), num('Height', 'h', 'mm', 1), num('Quantity', 'qty', 'pcs', 1)));
 
-    // Diagram + key results
-    const diag = el('div', { class: 'diagram' });
-    UI.diagram(diag, it.parts);
+    // Drawing
+    if (it.visual && window.VIS && VIS[it.visual[0]]) {
+      const spec = it.visual[0] === 'panel' ? { ...it.visual[1], w: it.panel.w, h: it.panel.h } : it.visual[1];
+      const vbox = el('div', { class: 'panel-view' });
+      try {
+        VIS[it.visual[0]](vbox, spec);
+        sec.append(el('h3', {}, 'Drawing'), vbox);
+      } catch (_) {
+        /* drawing not available */
+      }
+    }
+
+    // Cross-section + key results
     const k = el('div');
-    const kp = [
-      { label: 'Peak absorption', value: fmt(it.peak[1]), sub: 'at ' + fmtHz(it.peak[0]) },
-      { label: 'NRC', value: it.ratings.nrc !== null ? fmt(it.ratings.nrc) : '–' },
-      { label: 'αw', value: it.ratings.aw !== null ? fmt(it.ratings.aw) + (it.ratings.indicators ? ` (${it.ratings.indicators})` : '') : '–', sub: it.ratings.cls ? 'Class ' + it.ratings.cls : '' },
-    ];
-    if (it.resonance) kp.splice(1, 0, { label: it.resonance.label, value: fmtHz(it.resonance.f), sub: it.resonance.sub });
+    let kp;
+    if (it.custom) kp = it.kpis || [];
+    else {
+      kp = [
+        { label: 'Peak absorption', value: fmt(it.peak[1]), sub: 'at ' + fmtHz(it.peak[0]) },
+        { label: 'NRC', value: it.ratings.nrc !== null ? fmt(it.ratings.nrc) : '–' },
+        { label: 'αw', value: it.ratings.aw !== null ? fmt(it.ratings.aw) + (it.ratings.indicators ? ` (${it.ratings.indicators})` : '') : '–', sub: it.ratings.cls ? 'Class ' + it.ratings.cls : '' },
+      ];
+      if (it.resonance) kp.splice(1, 0, { label: it.resonance.label, value: fmtHz(it.resonance.f), sub: it.resonance.sub });
+    }
     UI.kpis(k, kp);
-    sec.append(el('div', { class: 'item-top' }, el('div', {}, el('h3', {}, 'Cross-section'), diag), el('div', {}, el('h3', {}, 'Key results (' + it.incidence + ')'), k)));
+    if (it.parts) {
+      const diag = el('div', { class: 'diagram' });
+      UI.diagram(diag, it.parts, { open: it.values && it.values.backing === 'free' });
+      sec.append(el('div', { class: 'item-top' }, el('div', {}, el('h3', {}, 'Cross-section'), diag), el('div', {}, el('h3', {}, 'Key results (' + it.incidence + ')'), k)));
+    } else sec.append(el('h3', {}, 'Key results'), k);
 
     // Build data
     const bd = el('div');
     UI.table(bd, ['Build data', 'Value'], d.rows);
     sec.append(el('h3', {}, 'Build data'), bd);
+    if (it.custom && it.table) {
+      const tb = el('div');
+      UI.table(tb, it.table.headers, it.table.rows);
+      sec.append(tb);
+    }
 
     // Safety + steps + checks
     sec.append(el('h3', {}, 'Safety'));
@@ -337,31 +447,61 @@
 
     // Chart and bands
     const ch = el('div');
-    UI.chart(ch, {
-      series: [{ name: it.label, points: it.curve, width: 2.5 }],
-      xMin: 50,
-      xMax: 10000,
-      yMin: Math.min(0, ...it.curve.map((p) => p[1])) < 0 ? -0.1 : 0,
-      yMax: 1,
-      xTicks: [63, 125, 250, 500, 1000, 2000, 4000, 8000],
-      xFmt: (x, h) => (h ? fmtHz(x) : UI.freqTickFmt(x)),
-      yTicks: [0, 0.2, 0.4, 0.6, 0.8, 1],
-      yFmt: (y, h) => fmt(y, h ? 2 : 1),
-      xLabel: 'Frequency (Hz)',
-      yLabel: 'Absorption coefficient α',
-      height: 300,
-    });
-    sec.append(el('h3', {}, 'Predicted absorption (' + it.incidence + ')'), ch);
-    const ob = el('div');
-    const octs = [125, 250, 500, 1000, 2000, 4000];
-    UI.table(ob, ['Octave band (Hz)', ...octs.map(String)], [['α', ...octs.map((o) => fmt(it.octave[o]))]]);
-    sec.append(ob);
+    if (it.custom && it.chart) {
+      const ys = it.chart.series.flatMap((x) => x.points.map((p) => p[1]));
+      const ymax = Math.max(1, ...ys);
+      const top = ymax <= 1 ? 1 : Math.ceil(ymax);
+      const stp = top / 5;
+      UI.chart(ch, {
+        series: it.chart.series,
+        legend: it.chart.series.length > 1,
+        xMin: it.chart.xMin,
+        xMax: it.chart.xMax,
+        yMin: 0,
+        yMax: top,
+        xTicks: [125, 250, 500, 1000, 2000, 4000].filter((x) => x >= it.chart.xMin && x <= it.chart.xMax),
+        xFmt: (x, h) => (h ? fmtHz(x) : UI.freqTickFmt(x)),
+        yTicks: [0, 1, 2, 3, 4, 5].map((q) => +(q * stp).toFixed(2)),
+        yFmt: (y, h) => fmt(y, h ? 2 : 1),
+        xLabel: 'Frequency (Hz)',
+        yLabel: it.chart.yLabel,
+        height: 300,
+      });
+      sec.append(el('h3', {}, 'Predicted performance'), ch);
+      if (it.extraTable) {
+        const et = el('div');
+        UI.table(et, it.extraTable.headers, it.extraTable.rows);
+        sec.append(et);
+      }
+    } else if (!it.custom) {
+      UI.chart(ch, {
+        series: [{ name: it.label, points: it.curve, width: 2.5 }],
+        xMin: 50,
+        xMax: 10000,
+        yMin: Math.min(0, ...it.curve.map((p) => p[1])) < 0 ? -0.1 : 0,
+        yMax: 1,
+        xTicks: [63, 125, 250, 500, 1000, 2000, 4000, 8000],
+        xFmt: (x, h) => (h ? fmtHz(x) : UI.freqTickFmt(x)),
+        yTicks: [0, 0.2, 0.4, 0.6, 0.8, 1],
+        yFmt: (y, h) => fmt(y, h ? 2 : 1),
+        xLabel: 'Frequency (Hz)',
+        yLabel: 'Absorption coefficient α',
+        height: 300,
+      });
+      sec.append(el('h3', {}, 'Predicted absorption (' + it.incidence + ')'), ch);
+      const ob = el('div');
+      const octs = [125, 250, 500, 1000, 2000, 4000];
+      UI.table(ob, ['Octave band (Hz)', ...octs.map(String)], [['α', ...octs.map((o) => fmt(it.octave[o]))]]);
+      sec.append(ob);
+    }
 
     // Inputs
-    const ib = el('div');
-    UI.table(ib, ['Design input', 'Value'], it.inputs);
-    sec.append(el('h3', {}, 'Design inputs'), ib);
-    const notes = [...it.notes, 'These values are predictions from published models for a panel of infinite size. Real panels can be different.'];
+    if (it.inputs && it.inputs.length) {
+      const ib = el('div');
+      UI.table(ib, ['Design input', 'Value'], it.inputs);
+      sec.append(el('h3', {}, 'Design inputs'), ib);
+    }
+    const notes = [...(it.notes || []), 'These values are predictions from published models. Real panels can be different.'];
     sec.append(el('ul', { class: 'notes' }, notes.map((n) => el('li', {}, n))));
     root.append(sec);
   }

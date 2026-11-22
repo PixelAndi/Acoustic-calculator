@@ -132,6 +132,7 @@ document.getElementById('clear').addEventListener('click', () => { store[mode] =
 document.getElementById('load').addEventListener('click', () => {
   const p = UI.loadPanelResult();
   if (!p) { UI.notes(N, [{ level: 'warn', text: 'No panel result is saved. On a panel page, click "Save result for other pages" first.' }]); return; }
+  if (!p.octaveAlpha) { UI.notes(N, [{ level: 'warn', text: 'The saved result is an absorption area of objects (m²), not an absorption coefficient. Ratings need absorption coefficients.' }]); return; }
   document.getElementById('f-bandType').value = 'octave';
   mode = 'octave';
   store.octave = { ...p.octaveAlpha };

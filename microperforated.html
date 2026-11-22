@@ -7,6 +7,7 @@
 <meta name="description" content="Calculate the sound absorption of a microperforated panel (MPP) with sub-millimetre holes over an air cavity, with Maa's exact model.">
 <link rel="stylesheet" href="css/style.css">
 <script src="js/core.js"></script>
+<script src="js/visual.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/absorber.js"></script>
 </head>
@@ -62,9 +63,15 @@ AbsorberPage.init(document.getElementById('calc'), {
     { id: 'D', label: 'Hole spacing (centre to centre)', unit: 'mm', value: 4, min: 0.02, max: 100 },
     { id: 'pattern', label: 'Hole pattern', type: 'select', value: 'square', options: [
       { value: 'square', label: 'Square grid' }, { value: 'triangular', label: 'Triangular grid' }] },
+    { id: 'mat', label: 'Sheet material (drawing only)', type: 'select', value: 'metal', options: [
+      { value: 'metal', label: 'Metal' }, { value: 'acrylic', label: 'Acrylic / glass' }, { value: 'wood', label: 'Wood veneer' }] },
     { group: 'Cavity' },
     { id: 'depth', label: 'Air cavity depth', unit: 'mm', value: 50, min: 1, max: 2000 },
   ],
+  visual(v, b) {
+    return ['panel', { w: v.pw, h: v.ph, depth: v.t + v.depth, material: v.mat || 'metal', face: 'micro', title: 'Microperforated panel',
+      holes: { D: v.D, r: v.dh / 2, pattern: v.pattern } }];
+  },
   build(v, a) {
     if (v.D <= v.dh) return { error: 'The hole spacing must be more than the hole diameter.' };
     const fac = AC.microperforatedFacing({ t: v.t / 1000, a: v.dh / 2000, D: v.D / 1000, pattern: v.pattern });

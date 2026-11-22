@@ -6,11 +6,16 @@ Web calculators for the design of acoustic absorber panels. The calculators are 
 
 | Page | What it calculates |
 | --- | --- |
+| `panels.html` | Visual guide to all panel types, with a link to the correct calculator |
 | `porous.html` | Absorption of a porous layer on a wall, with or without an air gap |
 | `perforated.html` | Absorption of a panel with round holes over a cavity |
 | `slotted.html` | Absorption of a slotted panel or a slat wall over a cavity |
 | `microperforated.html` | Absorption of a microperforated panel (Maa exact model) |
 | `membrane.html` | Absorption and resonance of a limp sheet over a cavity |
+| `multilayer.html` | Broadband / multilayer builder: fabric, porous layers, air gaps, perforated, slotted, microperforated and membrane sheets; wall or open back |
+| `clouds.html` | Horizontal clouds, tilted clouds and vertical baffles: equivalent absorption area per object |
+| `diffuser.html` | QRD, PRD and 2D skyline diffusers: depths, frequency limits, polar plot, diffusion coefficient |
+| `helmholtz-resonator.html` | Single Helmholtz resonator (box with a neck) |
 | `resonance.html` | Resonance frequency, or cavity depth for a target frequency |
 | `flow-resistivity.html` | Flow resistivity from a measurement or from fibre data |
 | `ratings.html` | NRC, SAA (ASTM C423), αw and absorption class (ISO 11654) |
@@ -19,6 +24,8 @@ Web calculators for the design of acoustic absorber panels. The calculators are 
 | `sound-in-air.html` | Speed of sound, air properties, wavelength |
 | `project.html` | Project document: build data, procedure, inspection list and results of saved designs |
 | `learn.html` | Introduction to acoustics: the 7 ways sound interacts with the environment, decibels, absorbers, placement, safety |
+
+Each calculator shows a drawing of the panel that changes with the inputs: the real hole or slot layout, slats, fabric, cloud side view with the reflection direction, diffuser wells and blocks.
 
 The absorber pages calculate for normal incidence, one angle, or a diffuse field (Paris integral). They show the absorption by 1/3-octave and octave band, NRC, SAA and αw. You can keep curves to compare them, download a CSV file, and copy a link that contains the inputs.
 
@@ -54,6 +61,8 @@ The tests need Node.js 18 or later. They check `js/core.js` against these refere
 - An independent NumPy calculation for oblique incidence.
 - Physical limits: Poiseuille flow for holes and slits, the high-frequency limit of the Maa model, and Maa's approximate formula.
 - Rounding rules of ASTM C423 and ISO 11654.
+- Transfer-matrix checks: oblique mass law of a limp sheet, a resistive sheet R = 2ρc (α = 0.5), a very thick free layer equal to the same layer on a wall.
+- Diffusers: QRD/PRD sequences, a QRD at N·f₀ equal to a flat surface, and the 2D plane cut equal to the 1D result for one row.
 
 ## Differences from the reference spreadsheet
 
@@ -76,6 +85,7 @@ js/core.js           physics (browser and Node.js)
 js/ui.js             forms, charts, tables
 js/absorber.js       shared logic of the absorber pages
 js/project.js        project document
+js/visual.js         panel drawings (SVG)
 test/core.test.js    tests
 ```
 
