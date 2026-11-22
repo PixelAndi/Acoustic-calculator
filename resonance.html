@@ -8,6 +8,8 @@
 <link rel="stylesheet" href="css/style.css">
 <script src="js/core.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/references.js"></script>
+<script src="js/refdata.js"></script>
 </head>
 <body>
 <main>
@@ -40,6 +42,8 @@ Membrane, lumped:       f₀ = (1/2π) √(ρ₀c² / (m d))   d = ρ₀c² / (�
 Membrane, exact:        ω m = ρ₀c cot(ω d / c)        d = (c/ω₀) arctan(ρ₀c / (ω₀ m))</div>
     <p>t′ is the thickness of the panel with the end corrections. The end corrections are the same as on the perforated and slotted pages. ε is the open area and m is the surface mass of the sheet.</p>
 
+    <p class="sources">Sources: Helmholtz resonance and end corrections <cite data-ref="cox2016,ingard1953,jaouen2018"></cite>; membrane resonance <cite data-ref="cox2016,ford1969"></cite>.</p>
+
     <h2>Limits</h2>
     <ul>
       <li>The lumped formulas are correct only if the cavity is much smaller than the wavelength. The tool shows a warning if the cavity depth is more than 1/12 of the wavelength.</li>
@@ -47,7 +51,9 @@ Membrane, exact:        ω m = ρ₀c cot(ω d / c)        d = (c/ω₀) arctan(
       <li>The membrane formula is for a limp sheet. A stiff sheet has a higher resonance frequency.</li>
       <li>All formulas are for normal incidence.</li>
     </ul>
-    <p class="refs">Reference: T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapters 6 and 7.</p>
+    <h2>References</h2>
+    <ol data-refs-auto></ol>
+    <p class="derived"><a href="references.html">All references</a></p>
   </section>
 </main>
 <script>

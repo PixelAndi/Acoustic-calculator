@@ -291,7 +291,10 @@
     for (let deg = -90; deg <= 90; deg += 30) {
       const t = (deg * Math.PI) / 180;
       svgEl('line', { x1: cx, y1: cy, x2: cx + R * Math.sin(t), y2: cy - R * Math.cos(t), class: 'vis-grid' }, svg);
-      text(svg, cx + (R + 12) * Math.sin(t), cy - (R + 12) * Math.cos(t) + 4, deg + '°', { 'text-anchor': 'middle' });
+      const anchor = deg === -90 ? 'start' : deg === 90 ? 'end' : 'middle';
+      const lx = deg === -90 ? 2 : deg === 90 ? VW - 2 : cx + (R + 12) * Math.sin(t);
+      const ly = Math.abs(deg) === 90 ? cy - 8 : cy - (R + 12) * Math.cos(t) + 4;
+      text(svg, lx, ly, deg + '°', { 'text-anchor': anchor });
     }
     series.forEach((s, i) => {
       const d = s.points

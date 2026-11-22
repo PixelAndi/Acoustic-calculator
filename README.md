@@ -103,8 +103,6 @@ All results are predictions from published models. Real panels can be different 
 
 ## References
 
-- T. J. Cox and P. D'Antonio, *Acoustic Absorbers and Diffusers: Theory, Design and Application*.
-- M. E. Delany and E. N. Bazley, Applied Acoustics 3 (1970) 105–116.
-- Y. Miki, J. Acoust. Soc. Jpn (E) 11 (1990) 19–24.
-- D.-Y. Maa, J. Acoust. Soc. Am. 104 (1998) 2861–2866.
-- ISO 11654:1997, ASTM C423, ISO 354, ISO 9053.
+Every calculator page cites its sources in the text (numbered, with a reference list at the end). `references.html` lists all sources (71 entries) with DOIs or official links: peer-reviewed papers (J. Acoust. Soc. Am., J. Audio Eng. Soc., Applied Acoustics, J. Sound Vib.), standards (ISO, ITU-R, ASTM, DIN, EBU, ANSI/ASA, AES information documents) and textbooks (Cox & D'Antonio, Kuttruff, Allard & Atalla, Kinsler et al., Long, Everest & Pohlmann, Mechel).
+
+Each entry was checked against Crossref, the publisher, the AES E-Library index or the standards body. Where a formula could not be confirmed in a source that we could read, the page says so (for example the diffuser upper limit c/(2w) and the limp-fabric impedance). SAE Institute was searched; its public pages have no citable technical content, so it is not cited.

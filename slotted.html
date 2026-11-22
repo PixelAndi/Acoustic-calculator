@@ -9,6 +9,8 @@
 <script src="js/core.js"></script>
 <script src="js/visual.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/references.js"></script>
+<script src="js/refdata.js"></script>
 <script src="js/absorber.js"></script>
 </head>
 <body>
@@ -43,16 +45,21 @@ Resonance (empty cavity, depth d):  f₀ = (c / 2π) √(ε / (t′ d)),   t′ 
     <p>Z<sub>s</sub> is the exact impedance of air in a narrow slit. It includes the viscous loss in the slot. At low frequency it gives the known flow resistance 12ηt/(εw²). The cavity uses the same layer method as the porous absorber page.</p>
     <p><b>Note about the reference spreadsheet.</b> The slotted-panel sheet of "Porous Absorber Calculator V1.60" adds a term −jρ₀c₀·cot(k·t′) to the panel impedance. This term is the impedance of a closed tube. It is not part of a slot. It moves the peak to a much higher frequency than the Helmholtz formula gives. This calculator does not use that term. Thus its results are different from the sheet.</p>
 
+    <p class="sources">Sources: slot end correction <cite data-ref="smits1951,mechel2008,cox2016"></cite>; exact viscous slit impedance <cite data-ref="stinson1991,allard2009"></cite>; resonance formula <cite data-ref="cox2016"></cite>.</p>
+
     <h2>Limits</h2>
     <ul>
       <li>The panel is rigid and the slots are long compared to their width.</li>
+      <li>The slot end correction is given for open areas from 10 % to 70 % <cite data-ref="mechel2008"></cite>. The calculator shows a warning outside this range.</li>
       <li><b>Comparison with products:</b> for wood slat panels on felt, this model gives lower absorption than the published classes of the products (for example class C–D from the model, class A published, on battens with insulation). When a porous layer or felt touches the back of the panel, use measured data of the product if it is available.</li>
       <li>The model is for slot or hole spacing much smaller than the wavelength. At high frequencies, when the spacing is near half the wavelength, the result is less accurate.</li>
       <li>The end correction does not include the viscous loss at the ends of the slot. For slots of a few millimetres this loss is small.</li>
       <li>The model is for plane waves in the cavity. The calculation is for a panel of infinite size.</li>
       <li>The resonance formula is for a cavity that is much smaller than the wavelength. Use the curve for the accurate peak frequency.</li>
     </ul>
-    <p class="refs">References: T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapter 6. The slit impedance is the exact solution for oscillating viscous flow between two parallel plates (the planar form of Maa's model for round holes).</p>
+    <h2>References</h2>
+    <ol data-refs-auto></ol>
+    <p class="derived"><a href="references.html">All references</a></p>
   </section>
 </main>
 <script>
@@ -81,7 +88,8 @@ AbsorberPage.init(document.getElementById('calc'), {
     if (cav.error) return cav;
     const f0 = AC.helmholtzFrequency({ eps: fac.eps, tEff: fac.tEff, depth: v.depth / 1000, c: a.c });
     const notes = [];
-    if (fac.eps > 0.3) notes.push({ level: 'warn', text: `The open area is ${UI.fmt(fac.eps * 100, 1)} %. With a large open area the panel has little effect.` });
+    if (fac.eps < 0.1 || fac.eps > 0.7) notes.push({ level: 'warn', text: `The open area is ${UI.fmt(fac.eps * 100, 1)} %. The slot end-correction formula is given for open areas from 10 % to 70 %.` });
+    if (fac.eps > 0.3) notes.push({ text: `The open area is ${UI.fmt(fac.eps * 100, 1)} %. With a large open area the panel has little effect.` });
     return {
       construction: { layers: cav.layers, facing: fac },
       parts: [{ kind: 'facing', label: 'Slats', mm: v.t }, ...cav.parts],

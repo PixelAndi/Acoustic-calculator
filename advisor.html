@@ -9,6 +9,8 @@
 <script src="js/core.js"></script>
 <script src="js/visual.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/references.js"></script>
+<script src="js/refdata.js"></script>
 <script src="js/treatments.js"></script>
 </head>
 <body>
@@ -69,6 +71,15 @@
     <p>If the requirement is a maximum (ANSI S12.60, DIN 18041 group B), the advisor aims 10 % below the maximum as a design margin.</p>
     <p>The panels cover hard surfaces. The advisor assumes that the absorption of the covered surface is small and does not subtract it.</p>
 
+    <h2>Sources</h2>
+    <ul>
+      <li>Target values: DIN 18041 groups A and B <cite data-ref="din18041,owa"></cite>; listening rooms <cite data-ref="bs1116,ebu3276"></cite>; classrooms in the USA <cite data-ref="ansi1260"></cite>.</li>
+      <li>Absorption area and RT60: Sabine formula <cite data-ref="sabine1922,kuttruff2016"></cite>. Schroeder frequency <cite data-ref="schroeder1962"></cite>.</li>
+      <li>Example spectrum for a published class: reference curve of ISO 11654 <cite data-ref="iso11654"></cite>.</li>
+      <li>Shop products: <cite data-ref="lundbergs,rusta,peutz2024,benjo,ikeaSkadis,dpiPegboard"></cite>. Furniture values: <cite data-ref="asra37"></cite>.</li>
+      <li>Position of treatment: early reflections <cite data-ref="olive1989,toole2025"></cite>; flutter echo <cite data-ref="halmrast2015"></cite>; room modes <cite data-ref="cox2004rooms"></cite>.</li>
+    </ul>
+
     <h2>Limits</h2>
     <ul>
       <li>The Sabine formula assumes a diffuse sound field. In small rooms, below the Schroeder frequency, room modes are more important than the reverberation time.</li>
@@ -76,8 +87,11 @@
       <li>Furniture is not counted. For values, see the furniture list.</li>
       <li>The advisor does not know about prices or offers. Type a price per m² if you want to compare costs.</li>
       <li>The position of the treatment is important. The advisor gives general rules for the position. It does not calculate it.</li>
-      <li>After you install the treatment, measure the room again.</li>
+      <li>After you install the treatment, measure the room again <cite data-ref="iso3382"></cite>.</li>
     </ul>
+    <h2>References</h2>
+    <ol data-refs-auto></ol>
+    <p class="derived"><a href="references.html">All references</a></p>
   </section>
 </main>
 <script>
@@ -281,13 +295,13 @@ function renderOptions() {
     const desc = sol.list.map((c, j) => UI.el('div', {}, UI.el('b', {}, UI.fmt(sol.areas[j], 1) + ' m²'), ' ', c.name)).concat(sol.cost ? [UI.el('div', { class: 'derived' }, 'Cost ≈ ' + UI.fmt(sol.cost, 0))] : []);
     const tr = UI.el('tr', { style: 'cursor:pointer' + (i === selected ? ';background:var(--accent-soft)' : ''), tabindex: '0',
       onclick: () => { selected = i; renderChart(); renderOptions(); }, onkeydown: (e) => { if (e.key === 'Enter') { selected = i; renderChart(); renderOptions(); } } },
-      UI.el('th', { scope: 'row' }, String(i + 1)), UI.el('td', { style: 'text-align:left;white-space:normal' }, desc),
-      UI.el('td', {}, UI.fmt(sol.cover * 100, 0) + ' %' + (sol.fits ? '' : ' (too much)')),
-      UI.el('td', {}, `${sol.inTol} / ${sol.nReq}`),
-      ...sol.Tafter.map((T) => UI.el('td', {}, UI.fmt(T, 2))));
+      UI.el('th', { scope: 'row' }, 'Solution ' + (i + 1)), UI.el('td', { class: 'wide', style: 'text-align:left;white-space:normal', 'data-label': 'Treatment' }, desc),
+      UI.el('td', { 'data-label': 'Coverage' }, UI.fmt(sol.cover * 100, 0) + ' %' + (sol.fits ? '' : ' (too much)')),
+      UI.el('td', { 'data-label': 'Bands in range' }, `${sol.inTol} / ${sol.nReq}`),
+      ...sol.Tafter.map((T, b) => UI.el('td', { 'data-label': `RT60 ${OCTS[b]} Hz` }, UI.fmt(T, 2) + ' s')));
     tb.append(tr);
   });
-  box.append(UI.el('div', { class: 'table-wrap' }, UI.el('table', { class: 'data' },
+  box.append(UI.el('div', { class: 'table-wrap' }, UI.el('table', { class: 'data stack' },
     UI.el('thead', {}, UI.el('tr', {}, ['#', 'Solution', 'Coverage', 'Bands in range', ...OCTS.map((o) => 'RT ' + o)].map((h) => UI.el('th', {}, h)))), tb)));
   // Per-treatment table
   const groups = {};

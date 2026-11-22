@@ -307,6 +307,8 @@
    * Perforated panel with circular holes (Cox & D'Antonio ch. 6, app. B.4).
    *   z = r_m + jωρ t'/ε
    *   t' = t + 2δa,  δ = 0.8(1 − 1.47√ε + 0.47ε^{3/2})
+   *   (interaction polynomial of Nesterov (1941), see Jaouen & Chevillotte 2018, doi:10.3813/AAA.919166;
+   *    stated for √ε ≤ 0.9; Cox & D'Antonio round Rayleigh's 8/(3π) ≈ 0.85 to 0.8)
    *   r_m = (ρ/ε) √(8νω) (1 + t/(2a))
    * t = sheet thickness, a = hole radius, D = hole spacing (all in m).
    */

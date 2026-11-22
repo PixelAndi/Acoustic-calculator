@@ -26,6 +26,7 @@
     { href: 'sound-in-air.html', label: 'Sound in air' },
     { href: 'learn.html', label: 'Learn' },
     { href: 'project.html', label: 'Project' },
+    { href: 'references.html', label: 'References' },
   ];
 
   const el = (tag, attrs = {}, ...children) => {
@@ -280,11 +281,15 @@
    *         xLabel, yLabel, xTicks, yTicks, yFmt, xFmt, stems }
    */
   function chart(container, opts) {
+    chartRegistry.set(container, opts);
     container.innerHTML = '';
     container.classList.add('chart');
-    const W = 720;
-    const H = opts.height || 360;
-    const m = { l: 52, r: 14, t: 12, b: 44 };
+    // Draw at the real width (300–720 px) so that the text keeps its size on phones.
+    const cw = container.clientWidth || 720;
+    const W = Math.round(Math.min(720, Math.max(300, cw)));
+    const H = Math.round(Math.min(opts.height || 360, Math.max(opts.height ? opts.height * 0.7 : 230, W * 0.62)));
+    container.dataset.drawnWidth = String(W);
+    const m = { l: W < 480 ? 44 : 52, r: W < 480 ? 8 : 14, t: 12, b: 44 };
     const pw = W - m.l - m.r;
     const ph = H - m.t - m.b;
     const xLog = opts.xLog !== false;
@@ -299,8 +304,12 @@
       t.textContent = opts.yFmt ? opts.yFmt(y) : y;
       svg.append(t);
     }
+    let lastLabelX = -Infinity;
     for (const x of opts.xTicks || []) {
       svg.append(sv('line', { class: 'gridline', x1: tx(x), x2: tx(x), y1: m.t, y2: m.t + ph }));
+      // Leave out a label if it is too close to the previous label (narrow screens).
+      if (tx(x) - lastLabelX < 30) continue;
+      lastLabelX = tx(x);
       const t = sv('text', { x: tx(x), y: m.t + ph + 16, 'text-anchor': 'middle' });
       t.textContent = opts.xFmt ? opts.xFmt(x) : x;
       svg.append(t);
@@ -391,6 +400,7 @@
         tip.style.top = ev.clientY - cr.top - 10 + 'px';
       };
       svg.addEventListener('pointermove', move);
+      svg.addEventListener('pointerdown', move);
       svg.addEventListener('pointerleave', () => {
         tip.style.display = 'none';
         hl.setAttribute('visibility', 'hidden');
@@ -463,15 +473,33 @@
   }
 
 
+  /* Redraw charts when the width changes (phone rotation, window resize). */
+  const chartRegistry = new Map();
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      for (const [c, o] of chartRegistry) {
+        if (!c.isConnected) {
+          chartRegistry.delete(c);
+          continue;
+        }
+        const w = Math.round(Math.min(720, Math.max(300, c.clientWidth)));
+        if (String(w) !== c.dataset.drawnWidth) chart(c, o);
+      }
+    }, 150);
+  });
+
   const FREQ_TICKS = [31.5, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
   const freqTickFmt = (f) => (f >= 1000 ? f / 1000 + 'k' : String(f));
 
   /* ---------------- table / csv / notes ---------------- */
   function table(container, headers, rows, opts = {}) {
     container.innerHTML = '';
+    const stack = opts.stack !== undefined ? opts.stack : headers.length > 4;
     const t = el(
       'table',
-      { class: 'data' },
+      { class: 'data' + (stack ? ' stack' : '') },
       el('thead', {}, el('tr', {}, headers.map((h) => el('th', { scope: 'col' }, h)))),
       el(
         'tbody',
@@ -482,7 +510,7 @@
             {},
             r.map((c, i) => {
               const cls = opts.negClass && typeof c === 'object' && c && c.neg ? 'neg' : null;
-              return el(i === 0 ? 'th' : 'td', { scope: i === 0 ? 'row' : null, class: cls }, c && typeof c === 'object' ? c.text : c);
+              return el(i === 0 ? 'th' : 'td', { scope: i === 0 ? 'row' : null, class: cls, 'data-label': headers[i] }, c && typeof c === 'object' ? c.text : c);
             })
           )
         )
@@ -575,7 +603,30 @@
     empty: emptyProject,
   };
 
+  /* Phones: a floating button that jumps between the inputs and the results. */
+  function jumpButton() {
+    const calc = document.querySelector('.calc');
+    if (!calc || calc.children.length < 2) return;
+    const inputs = calc.children[0];
+    const results = calc.children[1];
+    const btn = el('button', { class: 'jump-btn', type: 'button', 'aria-label': 'Go to the results' }, 'Results ↓');
+    let toResults = true;
+    btn.addEventListener('click', () => {
+      (toResults ? results : inputs).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    const update = () => {
+      const r = results.getBoundingClientRect();
+      toResults = r.top > window.innerHeight * 0.5;
+      btn.textContent = toResults ? 'Results ↓' : 'Inputs ↑';
+      btn.setAttribute('aria-label', toResults ? 'Go to the results' : 'Go to the inputs');
+    };
+    window.addEventListener('scroll', update, { passive: true });
+    document.body.append(btn);
+    update();
+  }
+
   document.addEventListener('DOMContentLoaded', header);
+  document.addEventListener('DOMContentLoaded', jumpButton);
 
   root.UI = {
     el,

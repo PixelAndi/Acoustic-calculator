@@ -8,6 +8,8 @@
 <link rel="stylesheet" href="css/style.css">
 <script src="js/core.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/references.js"></script>
+<script src="js/refdata.js"></script>
 </head>
 <body>
 <main>
@@ -51,6 +53,8 @@ From a measured T:  A = 55.26 V / (c T)
 After:    A′ = A − S_p ᾱ + S_p α_p + A_extra</div>
     <p>V is the room volume, S is the total surface area and S_p is the panel area. The constant 55.26 is 24 ln 10. The panels cover an area of the room that had the mean absorption coefficient ᾱ.</p>
 
+    <p class="sources">Sources: Sabine formula <cite data-ref="sabine1922,hyperphysicsRT"></cite>; Eyring formula <cite data-ref="eyring1930"></cite>; textbook forms <cite data-ref="kuttruff2016,long2014"></cite>; measurement of RT60 <cite data-ref="iso3382"></cite>; air absorption <cite data-ref="iso9613"></cite>.</p>
+
     <h2>Limits</h2>
     <ul>
       <li>The formulas are correct for a diffuse sound field. They are less accurate in a room with one very absorbent surface, or in a long or flat room.</li>
@@ -58,7 +62,9 @@ After:    A′ = A − S_p ᾱ + S_p α_p + A_extra</div>
       <li>People and furniture add absorption. Include them in the mean absorption coefficient, or use a measured RT60.</li>
       <li>Use diffuse-field (random-incidence) values for the panels.</li>
     </ul>
-    <p class="refs">References: W. C. Sabine, <i>Collected Papers on Acoustics</i> (1922). C. F. Eyring, J. Acoust. Soc. Am. 1 (1930) 217–241. ISO 3382-2 (measurement of reverberation time).</p>
+    <h2>References</h2>
+    <ol data-refs-auto></ol>
+    <p class="derived"><a href="references.html">All references</a></p>
   </section>
 </main>
 <script>
