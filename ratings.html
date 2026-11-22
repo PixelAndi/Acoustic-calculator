@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Absorption Ratings Calculator</title>
+<meta name="description" content="Calculate NRC, SAA (ASTM C423), the weighted sound absorption coefficient αw and the absorption class (ISO 11654) from band values.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/ui.js"></script>
+</head>
+<body>
+<main>
+  <h1>Absorption ratings: NRC, SAA and αw</h1>
+  <p class="lead">Type the sound absorption coefficients of a product. The tool calculates the single-number ratings of ASTM C423 and ISO 11654.</p>
+
+  <div class="calc">
+    <div class="card">
+      <h2>Inputs</h2>
+      <div id="form"></div>
+      <div id="bands"></div>
+      <div class="btn-row">
+        <button class="btn" id="load" type="button">Load last panel result</button>
+        <button class="btn" id="clear" type="button">Clear values</button>
+      </div>
+    </div>
+    <div>
+      <div class="card"><h2>Results</h2><div id="kpis"></div><div id="chart"></div><div id="notes"></div></div>
+      <div class="card"><h2>ISO 11654 steps</h2><div id="steps"></div></div>
+    </div>
+  </div>
+
+  <section class="doc">
+    <h2>How to use</h2>
+    <ol>
+      <li>Select the band type of your data: one-third octave or octave.</li>
+      <li>Type the absorption coefficient for each band. Use the values from the test report.</li>
+      <li>Read the NRC, SAA, αw, the shape indicators and the class.</li>
+    </ol>
+
+    <h2>Description</h2>
+    <p><b>NRC</b> (noise reduction coefficient) is the mean of the one-third-octave values at 250, 500, 1000 and 2000 Hz, rounded to the nearest 0.05.</p>
+    <p><b>SAA</b> (sound absorption average) is the mean of the 12 one-third-octave values from 200 Hz to 2500 Hz, rounded to the nearest 0.01.</p>
+    <p><b>αp</b> (practical sound absorption coefficient) is the mean of the three one-third-octave values in an octave. The mean is calculated to two decimals, then rounded in steps of 0.05. The maximum is 1.00.</p>
+    <p><b>αw</b> (weighted sound absorption coefficient) comes from a reference curve. The curve moves down in steps of 0.05 until the sum of the unfavourable deviations is 0.10 or less. An unfavourable deviation is a value of αp below the curve. αw is the value of the curve at 500 Hz.</p>
+    <p><b>Shape indicators</b> show where αp is 0.25 or more above the moved curve: L at 250 Hz, M at 500 Hz or 1000 Hz, H at 2000 Hz or 4000 Hz.</p>
+    <p><b>Absorption class</b>: A (αw 0.90–1.00), B (0.80–0.85), C (0.60–0.75), D (0.30–0.55), E (0.15–0.25). Lower values are "not classified".</p>
+
+    <h2>Method</h2>
+    <div class="formula">ISO 11654 reference curve:  250 Hz 0.80 · 500 Hz 1.00 · 1000 Hz 1.00 · 2000 Hz 1.00 · 4000 Hz 0.90</div>
+
+    <h2>Limits</h2>
+    <ul>
+      <li>The standards use values measured in a reverberation room (ASTM C423 or ISO 354). Values from a prediction or from an impedance tube give only an estimate of the rating.</li>
+      <li>If you type octave values, the tool uses them as αp after rounding. The NRC then uses octave values, not one-third-octave values. This is an approximation. SAA needs one-third-octave values.</li>
+      <li>Negative values are set to 0.</li>
+    </ul>
+    <p class="refs">References: ASTM C423, sound absorption by the reverberation room method. ISO 11654:1997, rating of sound absorption. ISO 354, measurement in a reverberation room.</p>
+  </section>
+</main>
+<script>
+const THIRDS = [100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000];
+const OCTS = [125, 250, 500, 1000, 2000, 4000];
+const K = document.getElementById('kpis'), CH = document.getElementById('chart'), N = document.getElementById('notes'), S = document.getElementById('steps'), B = document.getElementById('bands');
+const store = { third: {}, octave: {} };
+const DEMO = { 100: 0.12, 125: 0.18, 160: 0.25, 200: 0.36, 250: 0.48, 315: 0.62, 400: 0.74, 500: 0.85, 630: 0.92, 800: 0.96, 1000: 0.98, 1250: 0.99, 1600: 0.98, 2000: 0.97, 2500: 0.96, 3150: 0.95, 4000: 0.94, 5000: 0.93 };
+Object.assign(store.third, DEMO);
+let mode = 'third';
+
+function buildBands() {
+  const list = mode === 'third' ? THIRDS : OCTS;
+  const vals = store[mode];
+  B.innerHTML = '';
+  const tb = UI.el('tbody');
+  for (const b of list) {
+    const inp = UI.el('input', { type: 'number', step: '0.01', min: '0', max: '1.5', inputmode: 'decimal', 'aria-label': `α at ${b} Hz` });
+    inp.value = vals[b] ?? '';
+    inp.addEventListener('input', () => { vals[b] = inp.value === '' ? undefined : Number(inp.value); calc(); });
+    tb.append(UI.el('tr', {}, UI.el('th', { scope: 'row' }, b + ' Hz'), UI.el('td', {}, inp)));
+  }
+  B.append(UI.el('div', { class: 'table-wrap' }, UI.el('table', { class: 'data input-table' }, UI.el('thead', {}, UI.el('tr', {}, UI.el('th', {}, 'Band'), UI.el('th', {}, 'α'))), tb)));
+}
+
+function calc() {
+  const vals = store[mode];
+  const list = mode === 'third' ? THIRDS : OCTS;
+  const missing = list.filter((b) => !Number.isFinite(vals[b]));
+  const n = [];
+  let r;
+  if (mode === 'third') {
+    r = AC.ratings(vals);
+  } else {
+    const clean = {};
+    for (const b of OCTS) if (Number.isFinite(vals[b])) clean[b] = Math.max(0, vals[b]);
+    const practical = {};
+    for (const b of OCTS) if (clean[b] !== undefined) practical[b] = AC.practicalAlpha([clean[b]]);
+    r = { practical, nrc: AC.nrc(clean), saa: null, alphaW: null };
+    if ([250, 500, 1000, 2000, 4000].every((b) => practical[b] !== undefined)) r.alphaW = AC.alphaW([250, 500, 1000, 2000, 4000].map((b) => practical[b]));
+    n.push({ level: 'warn', text: 'Octave values: NRC is an approximation and SAA is not available.' });
+  }
+  if (missing.length) n.push({ level: 'warn', text: 'Some bands have no value: ' + missing.join(', ') + ' Hz. Some ratings cannot be calculated.' });
+  if (list.some((b) => vals[b] < 0)) n.push({ level: 'warn', text: 'Negative values are set to 0.' });
+  if (list.some((b) => vals[b] > 1)) n.push({ text: 'Some values are more than 1.00. This is possible in a reverberation-room test. αp is limited to 1.00.' });
+  UI.kpis(K, [
+    { label: 'NRC', value: r.nrc ? UI.fmt(r.nrc.value) : '–', sub: r.nrc ? 'mean ' + UI.fmt(r.nrc.mean, 4) : '' },
+    { label: 'SAA', value: r.saa ? UI.fmt(r.saa.value) : '–', sub: r.saa ? 'mean ' + UI.fmt(r.saa.mean, 4) : '' },
+    { label: 'αw', value: r.alphaW ? UI.fmt(r.alphaW.value) + (r.alphaW.indicators ? ` (${r.alphaW.indicators})` : '') : '–', sub: 'ISO 11654' },
+    { label: 'Class', value: r.alphaW ? r.alphaW.cls : '–', sub: 'ISO 11654, annex B' },
+  ]);
+  const series = [];
+  const pp = OCTS.filter((b) => r.practical[b] !== undefined).map((b) => [b, r.practical[b]]);
+  series.push({ name: 'αp (practical)', points: pp, markers: true });
+  if (r.alphaW) series.push({ name: 'Moved reference curve', points: [250, 500, 1000, 2000, 4000].map((b, i) => [b, r.alphaW.curve[i]]), dash: true, markers: true });
+  UI.chart(CH, { series, legend: true, xMin: 100, xMax: 5000, yMin: 0, yMax: 1.2, xTicks: OCTS, xFmt: (x, h) => (h ? UI.fmtHz(x) : UI.freqTickFmt(x)),
+    yTicks: [0, 0.2, 0.4, 0.6, 0.8, 1, 1.2], yFmt: (y, h) => UI.fmt(y, h ? 2 : 1), xLabel: 'Octave band (Hz)', yLabel: 'Absorption coefficient', ariaLabel: 'Practical absorption coefficient and reference curve' });
+  UI.notes(N, n);
+  if (r.alphaW) {
+    const rows = [250, 500, 1000, 2000, 4000].map((b, i) => {
+      const p = r.practical[b], c = r.alphaW.curve[i], dev = Math.max(0, c - p);
+      return [b + ' Hz', UI.fmt(p), UI.fmt(c), dev > 0 ? UI.fmt(dev) : '–', p - c >= 0.25 - 1e-9 ? 'yes' : '–'];
+    });
+    UI.table(S, ['Octave', 'αp', 'Moved curve', 'Unfavourable deviation', '≥ 0.25 above'], rows);
+  } else S.innerHTML = '<p>Type values for 250 Hz to 4000 Hz to see the steps.</p>';
+}
+
+UI.form(document.getElementById('form'), [
+  { id: 'bandType', label: 'Band type', type: 'select', value: 'third', options: [
+    { value: 'third', label: 'One-third octave (100–5000 Hz)' }, { value: 'octave', label: 'Octave (125–4000 Hz)' }] },
+], (v) => { mode = v.bandType; buildBands(); calc(); }, { urlState: false });
+
+document.getElementById('clear').addEventListener('click', () => { store[mode] = {}; buildBands(); calc(); });
+document.getElementById('load').addEventListener('click', () => {
+  const p = UI.loadPanelResult();
+  if (!p) { UI.notes(N, [{ level: 'warn', text: 'No panel result is saved. On a panel page, click "Save result for other pages" first.' }]); return; }
+  document.getElementById('f-bandType').value = 'octave';
+  mode = 'octave';
+  store.octave = { ...p.octaveAlpha };
+  buildBands(); calc();
+  UI.notes(N, [{ text: 'Loaded: ' + p.name + '. These are octave means of predicted values.' }, ...[]]);
+});
+</script>
+</body>
+</html>

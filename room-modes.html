@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room Modes Calculator</title>
+<meta name="description" content="Calculate the axial, tangential and oblique room modes of a rectangular room and the Schroeder frequency.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/ui.js"></script>
+</head>
+<body>
+<main>
+  <h1>Room modes</h1>
+  <p class="lead">This tool gives the resonance frequencies (modes) of a rectangular room. Use it to find the low frequencies that a bass absorber must control.</p>
+
+  <div class="calc">
+    <div class="card"><h2>Inputs</h2><div id="form"></div></div>
+    <div>
+      <div class="card"><h2>Results</h2><div id="kpis"></div><div id="chart"></div><div id="notes"></div></div>
+      <div class="card"><h2>Mode list</h2><div class="btn-row" style="margin:0 0 .6rem"><button class="btn" id="csv" type="button">Download CSV</button></div><div id="table"></div></div>
+    </div>
+  </div>
+
+  <section class="doc">
+    <h2>How to use</h2>
+    <ol>
+      <li>Type the length, width and height of the room.</li>
+      <li>Type the maximum frequency for the list.</li>
+      <li>Type the reverberation time if you want the Schroeder frequency.</li>
+      <li>Look for frequencies with many modes close together, or with large gaps. These frequencies can sound uneven.</li>
+    </ol>
+
+    <h2>Description</h2>
+    <p>Sound reflects between the walls of a room. At some frequencies the reflections make standing waves. These are the room modes. At a mode, the sound level changes much from one position to another position.</p>
+    <p>Axial modes use two parallel surfaces. They are usually the strongest. Tangential modes use four surfaces. Oblique modes use all six surfaces and are usually the weakest.</p>
+    <p>Above the Schroeder frequency, many modes overlap and the sound field is approximately diffuse. Below it, single modes are important.</p>
+
+    <h2>Method</h2>
+    <div class="formula">f = (c/2) √((n_x/L)² + (n_y/W)² + (n_z/H)²),   n = 0, 1, 2, …
+Schroeder frequency:  f_s = 2000 √(T / V)</div>
+
+    <h2>Limits</h2>
+    <ul>
+      <li>The room is a rectangular box with rigid walls. Real walls are not fully rigid, so real modes are slightly different.</li>
+      <li>The tool does not show the strength of each mode.</li>
+      <li>Openings, furniture and non-parallel walls change the modes.</li>
+    </ul>
+    <p class="refs">Reference: H. Kuttruff, <i>Room Acoustics</i>, chapter 3. M. R. Schroeder &amp; K. H. Kuttruff, J. Acoust. Soc. Am. 34 (1962) 76–80.</p>
+  </section>
+</main>
+<script>
+const K = document.getElementById('kpis'), CH = document.getElementById('chart'), N = document.getElementById('notes'), TB = document.getElementById('table');
+let modes = [];
+document.getElementById('csv').addEventListener('click', () => UI.downloadCsv('room-modes.csv', ['f (Hz)', 'nx', 'ny', 'nz', 'type'], modes.map((m) => [m.f.toFixed(2), m.nx, m.ny, m.nz, m.type])));
+UI.form(document.getElementById('form'), [
+  { group: 'Room' },
+  { id: 'L', label: 'Length', unit: 'm', value: 6, min: 0.5, max: 200 },
+  { id: 'W', label: 'Width', unit: 'm', value: 4.2, min: 0.5, max: 200 },
+  { id: 'H', label: 'Height', unit: 'm', value: 2.7, min: 0.5, max: 100 },
+  { group: 'Display' },
+  { id: 'fmax', label: 'Maximum frequency', unit: 'Hz', value: 200, min: 20, max: 1000 },
+  { id: 'rt', label: 'Reverberation time (optional)', unit: 's', value: 0.5, min: 0, max: 20, help: 'Type 0 to hide the Schroeder frequency.' },
+  { group: 'Air' },
+  { id: 'temp', label: 'Air temperature', unit: '°C', value: 20, min: -20, max: 50 },
+], (v, ok) => {
+  if (!ok) { UI.notes(N, [{ level: 'error', text: 'One or more inputs are not correct. Correct the inputs that show in red.' }]); return; }
+  const c = AC.air(v.temp).c;
+  modes = AC.roomModes({ L: v.L, W: v.W, H: v.H, c, fMax: v.fmax, maxOrder: 60 });
+  const V = v.L * v.W * v.H;
+  const fs = v.rt > 0 ? AC.schroederFrequency({ T: v.rt, V }) : null;
+  const count = (t) => modes.filter((m) => m.type === t).length;
+  UI.kpis(K, [
+    { label: 'Lowest mode', value: modes.length ? UI.fmt(modes[0].f, 1) + ' Hz' : '–', sub: modes.length ? `(${modes[0].nx},${modes[0].ny},${modes[0].nz})` : '' },
+    { label: 'Modes up to ' + v.fmax + ' Hz', value: String(modes.length), sub: `${count('axial')} axial · ${count('tangential')} tangential · ${count('oblique')} oblique` },
+    { label: 'Schroeder frequency', value: fs ? UI.fmt(fs, 0) + ' Hz' : '–', sub: fs ? 'RT ' + v.rt + ' s, V ' + UI.fmt(V, 1) + ' m³' : 'type an RT' },
+  ]);
+  const height = { axial: 1, tangential: 0.66, oblique: 0.4 };
+  const series = ['axial', 'tangential', 'oblique'].map((t) => ({ name: t[0].toUpperCase() + t.slice(1), stems: true, points: modes.filter((m) => m.type === t).map((m) => [m.f, height[t]]) }));
+  const ticks = []; const st = v.fmax > 400 ? 100 : v.fmax > 150 ? 25 : 10;
+  for (let x = 0; x <= v.fmax; x += st) ticks.push(x);
+  UI.chart(CH, { series, legend: true, xLog: false, xMin: 0, xMax: v.fmax, yMin: 0, yMax: 1.1, xTicks: ticks, yTicks: [], xLabel: 'Frequency (Hz)', yLabel: 'Mode type', ariaLabel: 'Room mode frequencies', height: 220 });
+  UI.table(TB, ['Frequency', 'n_x', 'n_y', 'n_z', 'Type'], modes.slice(0, 400).map((m) => [UI.fmt(m.f, 1) + ' Hz', m.nx, m.ny, m.nz, m.type]));
+  const n = [{ text: 'The bar height shows only the mode type (axial is highest). It does not show the strength of the mode.' }];
+  const ax = modes.filter((m) => m.type === 'axial').map((m) => m.f);
+  const close = [];
+  for (let i = 1; i < ax.length; i++) if (ax[i] - ax[i - 1] < 2) close.push(UI.fmt(ax[i - 1], 1) + ' / ' + UI.fmt(ax[i], 1));
+  if (close.length) n.push({ level: 'warn', text: 'Axial modes less than 2 Hz apart (they can make a strong peak): ' + close.slice(0, 6).join(', ') + ' Hz.' });
+  if (modes.length > 400) n.push({ text: 'The table shows the first 400 modes. The CSV file has all modes.' });
+  UI.notes(N, n);
+});
+</script>
+</body>
+</html>

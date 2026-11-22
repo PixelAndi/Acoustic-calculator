@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Porous Absorber Calculator</title>
+<meta name="description" content="Calculate the sound absorption of a porous absorber (mineral wool, glass wool, foam) on a rigid wall, with or without an air gap.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/absorber.js"></script>
+</head>
+<body>
+<main>
+  <h1>Porous absorber</h1>
+  <p class="lead">This calculator gives the sound absorption of a porous layer on a rigid wall. The layer can be mineral wool, glass wool or open-cell foam. You can add an air gap between the layer and the wall.</p>
+
+  <div id="calc"></div>
+
+  <section class="doc">
+    <h2>How to use</h2>
+    <ol>
+      <li>Type the thickness of the porous layer.</li>
+      <li>Type the flow resistivity of the material. Get this value from the data sheet of the material.</li>
+      <li>Type the air gap between the layer and the wall. Type 0 if the layer touches the wall.</li>
+      <li>Select the incident sound. Use "Diffuse" for a normal room.</li>
+      <li>Read the curve and the band table. To compare two designs, click "Keep curve for comparison" and then change the inputs.</li>
+    </ol>
+
+    <h2>Description</h2>
+    <p>A porous material has many small open channels. Sound moves the air in these channels. Friction between the air and the fibres changes the sound energy into heat.</p>
+    <p>Air moves fastest at a quarter wavelength from a rigid wall. Thus a thick layer, or a layer with an air gap behind it, absorbs lower frequencies. A thin layer on the wall absorbs only high frequencies.</p>
+    <p>Flow resistivity (σ) tells how much the material resists a flow of air. If σ is too low, the material does not cause sufficient friction. If σ is too high, sound reflects from the surface. For many building products, σ is between 5 000 and 50 000 Pa·s/m².</p>
+
+    <h2>Method</h2>
+    <p>The calculator uses the Delany &amp; Bazley or the Miki model to get the characteristic impedance <i>Z<sub>c</sub></i> and the wavenumber <i>k</i> of the material. It then moves the impedance from the wall to the surface, one layer at a time (transfer of impedance).</p>
+    <div class="formula">X = ρ₀ f / σ
+Z_c = ρ₀c₀ [1 + 0.0571 X^-0.754 − j 0.087 X^-0.732]
+k   = (ω/c₀)[1 + 0.0978 X^-0.700 − j 0.189 X^-0.595]
+
+Layer on rigid wall:   Z = −j Z_n cot(k_x d)
+Next layer (load Z_L): Z = Z_n (Z_L cos k_x d + j Z_n sin k_x d) / (Z_n cos k_x d + j Z_L sin k_x d)
+Oblique sound:         k_x = √(k² − k₀² sin²θ),  Z_n = Z_c k / k_x
+Reflection:            R = (Z cosθ − ρ₀c₀) / (Z cosθ + ρ₀c₀),   α = 1 − |R|²
+Diffuse field (Paris): α_d = ∫₀^{π/2} α(θ) sin 2θ dθ</div>
+    <p>Miki uses the same form with f/σ and the coefficients 0.070, 0.107 (exponent −0.632) and 0.109, 0.160 (exponent −0.618).</p>
+
+    <h2>Limits</h2>
+    <ul>
+      <li>The models are empirical. They are accurate for 0.01 ≤ X ≤ 1.0. The calculator shows a warning outside this range.</li>
+      <li>The Delany &amp; Bazley model can give negative absorption at low frequencies. This is an error of the model. Use the Miki model for these frequencies.</li>
+      <li>The calculation is for a layer of infinite size. Small panels absorb more sound per square metre because of edge diffraction. Laboratory values can be higher than the values here.</li>
+      <li>The wall is rigid. The frame of the material does not move.</li>
+      <li>Without partitions, the layer is "extended reacting": sound can travel along the layer. Select "Cavity has partitions" only if the layer is divided into small cells.</li>
+    </ul>
+    <p class="refs">References: M. E. Delany &amp; E. N. Bazley, Applied Acoustics 3 (1970) 105–116. Y. Miki, J. Acoust. Soc. Jpn (E) 11 (1990) 19–24. T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapters 1 and 5.</p>
+  </section>
+</main>
+<script>
+AbsorberPage.init(document.getElementById('calc'), {
+  type: 'porous',
+  name: 'Porous',
+  file: 'porous-absorber.csv',
+  cavityOption: true,
+  fields: [
+    { group: 'Porous layer' },
+    { id: 'ta', label: 'Thickness', unit: 'mm', value: 50, min: 1, max: 1000 },
+    AbsorberPage.sigmaField(10000),
+    AbsorberPage.porousModelField,
+    { group: 'Mounting' },
+    { id: 'gap', label: 'Air gap to wall', unit: 'mm', value: 0, min: 0, max: 2000 },
+  ],
+  build(v, a) {
+    const layers = [
+      { type: 'air', thickness: v.gap / 1000 },
+      { type: 'porous', thickness: v.ta / 1000, sigma: v.sigma, model: v.model },
+    ];
+    const parts = [{ kind: 'porous', label: 'Porous', mm: v.ta }];
+    if (v.gap > 0) parts.push({ kind: 'air', label: 'Air', mm: v.gap });
+    const depth = (v.ta + v.gap) / 1000;
+    return {
+      construction: { layers },
+      parts,
+      short: `${v.ta} mm, σ ${v.sigma}${v.gap > 0 ? `, ${v.gap} mm gap` : ''}`,
+      info: [
+        ['Total depth', UI.fmt(depth * 1000, 0) + ' mm'],
+        ['Flow resistance of layer (σ × d)', UI.fmt(v.sigma * v.ta / 1000, 0) + ' Pa·s/m'],
+      ],
+      resonance: { label: 'Quarter-wave frequency', f: a.c / (4 * depth), sub: 'c / (4 × total depth), guide only' },
+    };
+  },
+});
+</script>
+</body>
+</html>

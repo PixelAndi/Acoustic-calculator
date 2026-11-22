@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resonance and Cavity Depth</title>
+<meta name="description" content="Find the resonance frequency of a perforated, slotted or membrane absorber, or find the cavity depth for a target frequency.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/ui.js"></script>
+</head>
+<body>
+<main>
+  <h1>Resonance and cavity depth</h1>
+  <p class="lead">Use this tool for a quick design. It gives the resonance frequency of a resonant absorber. It can also give the cavity depth that is necessary for a target frequency.</p>
+
+  <div class="calc">
+    <div class="card"><h2>Inputs</h2><div id="form"></div></div>
+    <div>
+      <div class="card"><h2>Results</h2><div id="kpis"></div><div id="chart"></div><div id="notes"></div></div>
+    </div>
+  </div>
+
+  <section class="doc">
+    <h2>How to use</h2>
+    <ol>
+      <li>Select the absorber type.</li>
+      <li>Select what you want to find: the frequency or the cavity depth.</li>
+      <li>Type the panel data. Then type the cavity depth or the target frequency.</li>
+      <li>Read the result. The chart shows how the frequency changes with the cavity depth.</li>
+      <li>Use the full calculator page of the same absorber to see the absorption curve.</li>
+    </ol>
+
+    <h2>Description</h2>
+    <p>A resonant absorber has a mass in front of an air spring. The mass is the air in the holes or slots, or the sheet. The spring is the air in the cavity. The resonance frequency is the frequency of maximum movement. Most absorption occurs near this frequency.</p>
+
+    <h2>Method</h2>
+    <div class="formula">Perforated or slotted:  f₀ = (c/2π) √(ε / (t′ d))     d = ε c² / (ω₀² t′)
+Membrane, lumped:       f₀ = (1/2π) √(ρ₀c² / (m d))   d = ρ₀c² / (ω₀² m)
+Membrane, exact:        ω m = ρ₀c cot(ω d / c)        d = (c/ω₀) arctan(ρ₀c / (ω₀ m))</div>
+    <p>t′ is the thickness of the panel with the end corrections. The end corrections are the same as on the perforated and slotted pages. ε is the open area and m is the surface mass of the sheet.</p>
+
+    <h2>Limits</h2>
+    <ul>
+      <li>The lumped formulas are correct only if the cavity is much smaller than the wavelength. The tool shows a warning if the cavity depth is more than 1/12 of the wavelength.</li>
+      <li>A porous absorber in the cavity lowers the resonance frequency a little. The formulas are for an empty cavity.</li>
+      <li>The membrane formula is for a limp sheet. A stiff sheet has a higher resonance frequency.</li>
+      <li>All formulas are for normal incidence.</li>
+    </ul>
+    <p class="refs">Reference: T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapters 6 and 7.</p>
+  </section>
+</main>
+<script>
+const K = document.getElementById('kpis'), CH = document.getElementById('chart'), N = document.getElementById('notes');
+UI.form(document.getElementById('form'), [
+  { group: 'Absorber' },
+  { id: 'type', label: 'Absorber type', type: 'select', value: 'perf', options: [
+    { value: 'perf', label: 'Perforated panel (round holes)' },
+    { value: 'slot', label: 'Slotted panel' },
+    { value: 'mem', label: 'Membrane (limp sheet)' }] },
+  { id: 'solve', label: 'Find', type: 'select', value: 'f', options: [
+    { value: 'f', label: 'Resonance frequency' }, { value: 'd', label: 'Cavity depth' }] },
+  { group: 'Panel' },
+  { id: 't', label: 'Panel thickness', unit: 'mm', value: 12, min: 0.1, max: 200, showIf: (v) => v.type !== 'mem' },
+  { id: 'dh', label: 'Hole diameter', unit: 'mm', value: 8, min: 0.1, max: 200, showIf: (v) => v.type === 'perf' },
+  { id: 'D', label: 'Hole spacing (centre to centre)', unit: 'mm', value: 32, min: 0.2, max: 1000, showIf: (v) => v.type === 'perf' },
+  { id: 'pattern', label: 'Hole pattern', type: 'select', value: 'square', options: [
+    { value: 'square', label: 'Square grid' }, { value: 'triangular', label: 'Triangular grid' }], showIf: (v) => v.type === 'perf' },
+  { id: 'w', label: 'Slot width', unit: 'mm', value: 5, min: 0.05, max: 500, showIf: (v) => v.type === 'slot' },
+  { id: 'pitch', label: 'Slot pitch (centre to centre)', unit: 'mm', value: 50, min: 0.1, max: 2000, showIf: (v) => v.type === 'slot' },
+  { id: 'm', label: 'Surface mass of sheet', unit: 'kg/m²', value: 4.2, min: 0.01, max: 500, showIf: (v) => v.type === 'mem' },
+  { group: 'Target' },
+  { id: 'depth', label: 'Cavity depth', unit: 'mm', value: 50, min: 1, max: 5000, showIf: (v) => v.solve === 'f' },
+  { id: 'f0', label: 'Target frequency', unit: 'Hz', value: 250, min: 10, max: 10000, showIf: (v) => v.solve === 'd' },
+  { group: 'Air' },
+  { id: 'temp', label: 'Air temperature', unit: '°C', value: 20, min: -20, max: 50 },
+], (v, ok) => {
+  if (!ok) { UI.notes(N, [{ level: 'error', text: 'One or more inputs are not correct. Correct the inputs that show in red.' }]); return; }
+  const a = AC.air(v.temp);
+  let fOf, dOf, info = [];
+  if (v.type === 'perf' || v.type === 'slot') {
+    let fac;
+    if (v.type === 'perf') {
+      if (v.D <= v.dh) { UI.notes(N, [{ level: 'error', text: 'The hole spacing must be more than the hole diameter.' }]); return; }
+      fac = AC.perforatedFacing({ t: v.t / 1000, a: v.dh / 2000, D: v.D / 1000, pattern: v.pattern });
+    } else {
+      if (v.pitch <= v.w) { UI.notes(N, [{ level: 'error', text: 'The slot pitch must be more than the slot width.' }]); return; }
+      fac = AC.slottedFacing({ t: v.t / 1000, w: v.w / 1000, pitch: v.pitch / 1000 });
+    }
+    fOf = (d) => AC.helmholtzFrequency({ eps: fac.eps, tEff: fac.tEff, depth: d, c: a.c });
+    dOf = (f) => AC.helmholtzDepth({ eps: fac.eps, tEff: fac.tEff, f0: f, c: a.c });
+    info = [{ label: 'Open area ε', value: UI.fmt(fac.eps * 100, 2) + ' %' }, { label: 'Effective thickness t′', value: UI.fmt(fac.tEff * 1000, 2) + ' mm' }];
+  } else {
+    fOf = (d) => AC.membraneFrequencyExact({ m: v.m, depth: d, rho: a.rho, c: a.c });
+    dOf = (f) => { const w = 2 * Math.PI * f; return (a.c / w) * Math.atan((a.rho * a.c) / (w * v.m)); };
+    info = [{ label: 'Lumped formula (60/√(m·d))', value: '' }];
+  }
+  let f, d;
+  if (v.solve === 'f') { d = v.depth / 1000; f = fOf(d); } else { f = v.f0; d = dOf(f); }
+  const k = [];
+  if (v.solve === 'f') k.push({ label: 'Resonance frequency', value: UI.fmtHz(f), sub: v.type === 'mem' ? 'exact root, limp sheet' : 'lumped formula' });
+  else k.push({ label: 'Cavity depth', value: UI.fmt(d * 1000, 1) + ' mm', sub: 'for ' + UI.fmtHz(f) });
+  if (v.type === 'mem') {
+    const fl = AC.membraneFrequency({ m: v.m, depth: d, rho: a.rho, c: a.c });
+    k.push({ label: 'Lumped formula', value: UI.fmtHz(fl), sub: '≈ 60 / √(m d)' });
+  } else info.forEach((i) => k.push({ label: i.label, value: i.value }));
+  k.push({ label: 'Wavelength at f₀', value: UI.fmt(a.c / f * 1000, 0) + ' mm' });
+  UI.kpis(K, k);
+  const pts = [];
+  for (let mm = 10; mm <= 400; mm += 2) pts.push([mm, fOf(mm / 1000)]);
+  const ymax = Math.max(...pts.map((p) => p[1]));
+  const niceMax = Math.pow(10, Math.ceil(Math.log10(ymax)));
+  UI.chart(CH, {
+    series: [{ name: 'Resonance frequency', points: pts }, { name: 'This design', points: [[d * 1000, f]], markers: true }],
+    xLog: false, xMin: 0, xMax: 400, yMin: 0, yMax: Math.min(niceMax, ymax * 1.15 > niceMax / 2 ? niceMax : niceMax / 2),
+    xTicks: [0, 50, 100, 150, 200, 250, 300, 350, 400], xFmt: (x, h) => (h ? UI.fmt(x, 0) + ' mm' : x),
+    yTicks: (() => { const m = Math.min(niceMax, ymax * 1.15 > niceMax / 2 ? niceMax : niceMax / 2); return [0, 0.2, 0.4, 0.6, 0.8, 1].map((q) => q * m); })(),
+    yFmt: (y, h) => (h ? UI.fmtHz(y) : UI.fmt(y, 0)),
+    xLabel: 'Cavity depth (mm)', yLabel: 'Resonance frequency (Hz)', ariaLabel: 'Resonance frequency against cavity depth',
+  });
+  const n = [];
+  const kd = (2 * Math.PI * f / a.c) * d;
+  if (v.type !== 'mem' && d > a.c / f / 12) n.push({ level: 'warn', text: `The cavity depth is more than 1/12 of the wavelength. The lumped formula is less accurate. Use the perforated or slotted page for the absorption curve.` });
+  if (v.solve === 'd' && v.type === 'mem' && kd > 1.3) n.push({ level: 'warn', text: 'The sheet is very light for this frequency. The cavity depth is near a quarter wavelength.' });
+  n.push({ text: 'The formulas are for an empty cavity and normal incidence. A porous absorber in the cavity lowers the frequency a little.' });
+  UI.notes(N, n);
+});
+</script>
+</body>
+</html>

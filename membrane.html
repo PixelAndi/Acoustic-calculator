@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Membrane Absorber Calculator</title>
+<meta name="description" content="Calculate the sound absorption and resonance frequency of a membrane (panel) absorber: a limp sheet in front of an air cavity.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/absorber.js"></script>
+</head>
+<body>
+<main>
+  <h1>Membrane (panel) absorber</h1>
+  <p class="lead">This calculator gives the sound absorption of a sheet without holes in front of a cavity. The sheet can be plywood, MDF, plasterboard, vinyl or a foil. This absorber is used for low frequencies.</p>
+
+  <div id="calc"></div>
+
+  <section class="doc">
+    <h2>How to use</h2>
+    <ol>
+      <li>Type the density and the thickness of the sheet. The calculator shows the surface mass.</li>
+      <li>Type the cavity depth and the porous absorber data.</li>
+      <li>Read the resonance frequency. Change the surface mass or the cavity depth to move it.</li>
+    </ol>
+
+    <h2>Description</h2>
+    <p>The sheet is a mass. The air in the cavity is a spring. At the resonance frequency the sheet moves most. A porous absorber in the cavity removes energy from this movement.</p>
+    <p>A heavier sheet or a deeper cavity gives a lower resonance frequency. The absorption band is usually narrow.</p>
+
+    <h2>Method</h2>
+    <div class="formula">Surface mass:   m = ρ_sheet × t
+Sheet:          Z_p = j ω m           (limp mass)
+Surface:        Z = Z_p + Z_cavity
+
+Resonance, lumped:   f₀ = (1/2π) √(ρ₀c₀² / (m d))  ≈ 60 / √(m d)
+Resonance, exact:    ω m = ρ₀c₀ cot(ω d / c₀)          (empty cavity, normal incidence)</div>
+
+    <h2>Limits</h2>
+    <ul>
+      <li><b>Important:</b> the model uses a limp sheet. It does not include the bending stiffness of the sheet, the fixing at the edges or the loss in the sheet. A stiff sheet on a frame has a higher resonance frequency than this result.</li>
+      <li>The only loss in the model is the porous absorber. A real panel also has internal loss and loss at the fixings. Use the curve to see the frequency of the peak. Do not use it as an exact value of the absorption.</li>
+      <li>The calculation is for a sheet of infinite size. Small panels have more resonances.</li>
+      <li>If the cavity has no partitions, sound at oblique angles can travel along the cavity. Select "Cavity has partitions" if the cavity has a frame with cells.</li>
+    </ul>
+    <p class="refs">Reference: T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapter 7.</p>
+  </section>
+</main>
+<script>
+AbsorberPage.init(document.getElementById('calc'), {
+  type: 'membrane',
+  name: 'Membrane',
+  file: 'membrane-absorber.csv',
+  cavityOption: true,
+  fields: [
+    { group: 'Sheet' },
+    { id: 'rhoS', label: 'Sheet density', unit: 'kg/m³', value: 700, min: 1, max: 20000, help: 'Approximate values: plywood 500–700, MDF 650–800, plasterboard 700–900.' },
+    { id: 'ts', label: 'Sheet thickness', unit: 'mm', value: 6, min: 0.01, max: 100 },
+    ...AbsorberPage.cavityFields.map((f) => (f.id === 'depth' ? { ...f, value: 100 } : f)),
+  ],
+  build(v, a) {
+    const m = v.rhoS * v.ts / 1000;
+    const cav = AbsorberPage.cavity(v);
+    if (cav.error) return cav;
+    const d = v.depth / 1000;
+    const fl = AC.membraneFrequency({ m, depth: d, rho: a.rho, c: a.c });
+    const fe = AC.membraneFrequencyExact({ m, depth: d, rho: a.rho, c: a.c });
+    return {
+      construction: { layers: cav.layers, facing: AC.membraneFacing({ m }) },
+      parts: [{ kind: 'membrane', label: 'Sheet', mm: v.ts }, ...cav.parts],
+      short: `${UI.fmt(m, 2)} kg/m², ${v.depth} mm cavity`,
+      info: [
+        ['Surface mass m', UI.fmt(m, 2) + ' kg/m²'],
+        ['Resonance, lumped formula', UI.fmtHz(fl)],
+      ],
+      resonance: { label: 'Resonance f₀', f: fe, sub: 'exact root, empty cavity' },
+    };
+  },
+});
+</script>
+</body>
+</html>

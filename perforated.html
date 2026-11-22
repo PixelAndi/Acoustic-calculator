@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perforated Panel Calculator</title>
+<meta name="description" content="Calculate the sound absorption of a perforated panel (round holes) over a cavity with porous absorber.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/absorber.js"></script>
+</head>
+<body>
+<main>
+  <h1>Perforated panel absorber</h1>
+  <p class="lead">This calculator gives the sound absorption of a panel with round holes in front of a cavity. The cavity can contain a porous absorber. This is a Helmholtz resonator absorber.</p>
+
+  <div id="calc"></div>
+
+  <section class="doc">
+    <h2>How to use</h2>
+    <ol>
+      <li>Type the panel thickness, the hole diameter and the distance between hole centres.</li>
+      <li>Select the hole pattern. The calculator shows the open area.</li>
+      <li>Type the cavity depth. This is the distance from the back of the panel to the wall.</li>
+      <li>Type the thickness of the porous absorber in the cavity. Type 0 for an empty cavity.</li>
+      <li>Select the position of the absorber: against the panel or against the wall.</li>
+      <li>Read the resonance frequency and the curve. Change the cavity depth or the open area to move the peak.</li>
+    </ol>
+
+    <h2>Description</h2>
+    <p>The air in each hole is a small mass. The air in the cavity is a spring. Together they make a resonator. At the resonance frequency the air in the holes moves fast. The porous absorber changes this movement into heat.</p>
+    <p>A smaller open area or a deeper cavity gives a lower resonance frequency. A thicker panel also gives a lower frequency.</p>
+    <p>Put the porous absorber against the panel for the widest absorption band. If the absorber is against the wall, the peak is usually narrower.</p>
+
+    <h2>Method</h2>
+    <p>The panel is a thin sheet in series with the cavity. The cavity uses the same layer method as the porous absorber page.</p>
+    <div class="formula">Open area, square pattern:      ε = π a² / D²
+Open area, triangular pattern:  ε = π a² / (0.866 D²)
+End correction:  δ = 0.8 (1 − 1.47 √ε + 0.47 ε^1.5)
+Mass length:     t′ = t + 2 δ a
+Resistance:      r_m = (ρ₀/ε) √(8 ν ω) (1 + t / 2a)
+Panel:           Z_p = r_m + j ω ρ₀ t′ / ε
+Surface:         Z = Z_p + Z_cavity
+
+Resonance (empty cavity, depth d):  f₀ = (c / 2π) √(ε / (t′ d))</div>
+    <p>a is the hole radius, D is the distance between hole centres, t is the panel thickness and ν is the kinematic viscosity of air.</p>
+    <p>The calculator was checked against the "Porous Absorber Calculator V1.60" spreadsheet (perforated panel sheet). All three cavity arrangements agree to ±0.01.</p>
+
+    <h2>Limits</h2>
+    <ul>
+      <li>The panel is rigid. It does not vibrate.</li>
+      <li>The model is for plane waves in the cavity. It does not include the extra resistance near the holes when the absorber touches the panel. The real result can be slightly different.</li>
+      <li>The end-correction formula is an approximation. It is less accurate for a large open area (more than approximately 20 %).</li>
+      <li>The resonance formula is for a cavity that is much smaller than the wavelength. Use the curve for the accurate peak frequency.</li>
+      <li>The calculation is for a panel of infinite size.</li>
+    </ul>
+    <p class="refs">Reference: T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>, chapter 6 and appendix B.4.</p>
+  </section>
+</main>
+<script>
+const { cavityFields, cavity } = AbsorberPage;
+AbsorberPage.init(document.getElementById('calc'), {
+  type: 'perforated',
+  name: 'Perforated',
+  file: 'perforated-panel.csv',
+  cavityOption: true,
+  fields: [
+    { group: 'Panel' },
+    { id: 't', label: 'Panel thickness', unit: 'mm', value: 12, min: 0.1, max: 100 },
+    { id: 'dh', label: 'Hole diameter', unit: 'mm', value: 8, min: 0.1, max: 200 },
+    { id: 'D', label: 'Hole spacing (centre to centre)', unit: 'mm', value: 32, min: 0.2, max: 1000 },
+    { id: 'pattern', label: 'Hole pattern', type: 'select', value: 'square', options: [
+      { value: 'square', label: 'Square grid' }, { value: 'triangular', label: 'Triangular grid' }] },
+    ...cavityFields,
+  ],
+  build(v, a) {
+    if (v.D <= v.dh) return { error: 'The hole spacing must be more than the hole diameter.' };
+    const fac = AC.perforatedFacing({ t: v.t / 1000, a: v.dh / 2000, D: v.D / 1000, pattern: v.pattern });
+    const cav = cavity(v);
+    if (cav.error) return cav;
+    const notes = [];
+    if (fac.eps > 0.2) notes.push({ level: 'warn', text: `The open area is ${UI.fmt(fac.eps * 100, 1)} %. The end-correction formula is less accurate above approximately 20 %. With a large open area the panel has little effect.` });
+    if (v.dh < 1) notes.push({ level: 'warn', text: 'The holes are smaller than 1 mm. Use the microperforated panel page for an accurate result.' });
+    const f0 = AC.helmholtzFrequency({ eps: fac.eps, tEff: fac.tEff, depth: v.depth / 1000, c: a.c });
+    return {
+      construction: { layers: cav.layers, facing: fac },
+      parts: [{ kind: 'facing', label: 'Panel', mm: v.t }, ...cav.parts],
+      short: `${v.t} mm, Ø${v.dh} @ ${v.D} mm, ${v.depth} mm cavity`,
+      info: [
+        ['Open area ε', UI.fmt(fac.eps * 100, 2) + ' %'],
+        ['End correction δ', UI.fmt(fac.delta, 3)],
+        ["Effective thickness t′", UI.fmt(fac.tEff * 1000, 2) + ' mm'],
+      ],
+      resonance: { label: 'Resonance f₀', f: f0, sub: 'empty cavity, formula estimate' },
+      notes,
+    };
+  },
+});
+</script>
+</body>
+</html>
