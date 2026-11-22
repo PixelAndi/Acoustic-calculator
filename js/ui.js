@@ -26,6 +26,7 @@
     { href: 'sound-in-air.html', label: 'Sound in air' },
     { href: 'learn.html', label: 'Learn' },
     { href: 'project.html', label: 'Project' },
+    { href: 'references.html', label: 'References' },
   ];
 
   const el = (tag, attrs = {}, ...children) => {

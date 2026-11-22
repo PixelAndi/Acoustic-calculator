@@ -483,3 +483,11 @@ ul.checklist .box { flex: none; width: 0.95rem; height: 0.95rem; border: 1.5px s
 @media print {
   .jump-btn { display: none !important; }
 }
+
+/* Citations */
+cite.ref-cite { font-style: normal; font-size: 0.85em; white-space: nowrap; }
+cite.ref-cite a { text-decoration: none; }
+.ref-list { font-size: 0.88rem; padding-left: 1.6rem; }
+.ref-list li { margin-bottom: 0.45rem; overflow-wrap: anywhere; }
+.ref-list li:target { background: var(--accent-soft); border-radius: 4px; }
+.ref-note { color: var(--muted); }
