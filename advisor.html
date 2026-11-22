@@ -281,13 +281,13 @@ function renderOptions() {
     const desc = sol.list.map((c, j) => UI.el('div', {}, UI.el('b', {}, UI.fmt(sol.areas[j], 1) + ' m²'), ' ', c.name)).concat(sol.cost ? [UI.el('div', { class: 'derived' }, 'Cost ≈ ' + UI.fmt(sol.cost, 0))] : []);
     const tr = UI.el('tr', { style: 'cursor:pointer' + (i === selected ? ';background:var(--accent-soft)' : ''), tabindex: '0',
       onclick: () => { selected = i; renderChart(); renderOptions(); }, onkeydown: (e) => { if (e.key === 'Enter') { selected = i; renderChart(); renderOptions(); } } },
-      UI.el('th', { scope: 'row' }, String(i + 1)), UI.el('td', { style: 'text-align:left;white-space:normal' }, desc),
-      UI.el('td', {}, UI.fmt(sol.cover * 100, 0) + ' %' + (sol.fits ? '' : ' (too much)')),
-      UI.el('td', {}, `${sol.inTol} / ${sol.nReq}`),
-      ...sol.Tafter.map((T) => UI.el('td', {}, UI.fmt(T, 2))));
+      UI.el('th', { scope: 'row' }, 'Solution ' + (i + 1)), UI.el('td', { class: 'wide', style: 'text-align:left;white-space:normal', 'data-label': 'Treatment' }, desc),
+      UI.el('td', { 'data-label': 'Coverage' }, UI.fmt(sol.cover * 100, 0) + ' %' + (sol.fits ? '' : ' (too much)')),
+      UI.el('td', { 'data-label': 'Bands in range' }, `${sol.inTol} / ${sol.nReq}`),
+      ...sol.Tafter.map((T, b) => UI.el('td', { 'data-label': `RT60 ${OCTS[b]} Hz` }, UI.fmt(T, 2) + ' s')));
     tb.append(tr);
   });
-  box.append(UI.el('div', { class: 'table-wrap' }, UI.el('table', { class: 'data' },
+  box.append(UI.el('div', { class: 'table-wrap' }, UI.el('table', { class: 'data stack' },
     UI.el('thead', {}, UI.el('tr', {}, ['#', 'Solution', 'Coverage', 'Bands in range', ...OCTS.map((o) => 'RT ' + o)].map((h) => UI.el('th', {}, h)))), tb)));
   // Per-treatment table
   const groups = {};
