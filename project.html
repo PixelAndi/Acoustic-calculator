@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project Document</title>
+<meta name="description" content="A printable project document with the build data, procedure and predicted results of your acoustic panel designs.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/core.js"></script>
+<script src="js/ui.js"></script>
+</head>
+<body>
+<main>
+  <div class="no-print">
+    <h1>Project document</h1>
+    <p class="lead">This page collects the designs that you add from the panel calculators. Use it as a build document. Print it, or save it as a PDF.</p>
+    <div class="card toolbar">
+      <div class="btn-row" style="margin:0">
+        <button class="btn primary" id="print" type="button">Print or save as PDF</button>
+        <button class="btn" id="export" type="button">Download project file</button>
+        <button class="btn" id="import" type="button">Open project file</button>
+        <button class="btn" id="clear" type="button">Delete project</button>
+        <input type="file" id="import-file" accept=".json,application/json" hidden>
+      </div>
+      <ul class="notes">
+        <li>To save a PDF, click "Print or save as PDF". Then select "Save as PDF" as the printer.</li>
+        <li>The project is kept in this browser only. To keep a copy or to move it to a different computer, click "Download project file". To use the copy again, click "Open project file".</li>
+      </ul>
+    </div>
+  </div>
+  <div id="doc" class="doc-page"></div>
+</main>
+<script src="js/project.js"></script>
+</body>
+</html>

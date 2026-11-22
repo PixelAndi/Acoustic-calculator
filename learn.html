@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learn Acoustics</title>
+<meta name="description" content="An introduction to room acoustics: sound, decibels, the seven ways sound interacts with its environment, absorbers, placement and safety.">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/ui.js"></script>
+</head>
+<body>
+<main class="doc-learn">
+  <h1>Learn acoustics</h1>
+  <p class="lead">This page explains the basic facts that you need to design and use acoustic panels. Each section is short. The links go to the calculators.</p>
+
+  <nav class="card" aria-label="Contents">
+    <h2 style="margin-top:0">Contents</h2>
+    <ol class="toc">
+      <li><a href="#sound">What is sound?</a></li>
+      <li><a href="#db">Decibels</a></li>
+      <li><a href="#seven">The 7 ways sound interacts with the environment</a></li>
+      <li><a href="#insulation">Absorption is not sound insulation</a></li>
+      <li><a href="#reverb">Reverberation and echoes</a></li>
+      <li><a href="#modes">Room modes and bass</a></li>
+      <li><a href="#types">Types of absorbers</a></li>
+      <li><a href="#placement">Where to put panels</a></li>
+      <li><a href="#materials">Materials and safety</a></li>
+      <li><a href="#glossary">Glossary</a></li>
+    </ol>
+  </nav>
+
+  <section class="doc" id="sound">
+    <h2>1. What is sound?</h2>
+    <p>Sound is a small, fast change of air pressure. The change moves through the air as a wave. In air at 20 °C the wave moves at approximately 343 m/s.</p>
+    <p>The <b>frequency</b> is the number of pressure cycles in one second. The unit is hertz (Hz). People with good hearing hear from approximately 20 Hz to 20 000 Hz. The upper limit decreases with age.</p>
+    <p>The <b>wavelength</b> is the distance between two pressure peaks. Wavelength = speed of sound ÷ frequency. Low frequencies have long wavelengths. High frequencies have short wavelengths.</p>
+    <div class="table-wrap"><table class="data">
+      <thead><tr><th>Frequency</th><th>Wavelength</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><th>50 Hz</th><td>6.9 m</td><td>Deep bass, mains hum</td></tr>
+        <tr><th>125 Hz</th><td>2.7 m</td><td>Bass of a male voice</td></tr>
+        <tr><th>500 Hz</th><td>0.69 m</td><td>Centre of the speech range</td></tr>
+        <tr><th>2 000 Hz</th><td>0.17 m</td><td>Consonants, clarity of speech</td></tr>
+        <tr><th>8 000 Hz</th><td>43 mm</td><td>"S" sounds, cymbals</td></tr>
+      </tbody>
+    </table></div>
+    <p>Wavelength is important for panels. An object has a large effect on sound only if its size is similar to the wavelength or larger. Thus a thin panel can control high frequencies, but bass needs deep or resonant absorbers. Use the <a href="sound-in-air.html">sound in air</a> calculator to find wavelengths.</p>
+    <p>One <b>octave</b> is a doubling of frequency (for example 250 Hz to 500 Hz). Acoustic data is usually given in octave bands or one-third-octave bands.</p>
+  </section>
+
+  <section class="doc" id="db">
+    <h2>2. Decibels</h2>
+    <p>The ear hears a very large range of pressures. Thus we use a logarithmic scale: the decibel (dB). The sound pressure level is L = 20 log₁₀(p / 20 µPa). 0 dB is approximately the quietest sound that a young person can hear at 1 kHz.</p>
+    <ul>
+      <li>Two equal sources together are 3 dB louder than one source.</li>
+      <li>A change of 3 dB is just noticeable in normal conditions.</li>
+      <li>A change of 10 dB sounds approximately twice as loud (or half as loud).</li>
+      <li>Outdoors, the level from a small source decreases by 6 dB each time the distance doubles.</li>
+      <li>In a room, far from the source, the level depends on the absorption in the room. If you double the absorption area, this level decreases by 3 dB.</li>
+    </ul>
+    <p>A-weighting (dB(A)) makes the level agree better with how people hear quiet sounds. It decreases the low frequencies.</p>
+    <div class="card">
+      <h3 style="margin-top:0">Add sound levels</h3>
+      <p class="derived">Type levels in dB, with commas between them.</p>
+      <div class="mini-calc">
+        <label>Levels (dB)<input id="db-list" type="text" value="60, 60" style="width:12rem"></label>
+        <span>Total: <output id="db-sum">–</output></span>
+      </div>
+      <h3>Change with distance (small source, outdoors)</h3>
+      <div class="mini-calc">
+        <label>Level (dB)<input id="d-L" type="number" value="80"></label>
+        <label>At distance (m)<input id="d-r1" type="number" value="1" min="0.01" step="any"></label>
+        <label>New distance (m)<input id="d-r2" type="number" value="4" min="0.01" step="any"></label>
+        <span>New level: <output id="d-out">–</output></span>
+      </div>
+      <p class="derived">L₂ = L₁ − 20 log₁₀(r₂ / r₁). This is correct only in free space, without reflections.</p>
+    </div>
+  </section>
+
+  <section class="doc" id="seven" style="max-width:none">
+    <h2>3. The 7 ways sound interacts with the environment</h2>
+    <p style="max-width:80ch">When sound meets an object or a change in the air, one or more of these seven effects occurs. Usually several effects occur at the same time. Different books use slightly different lists. This page uses the seven effects that are most important for room acoustics.</p>
+    <div class="interactions">
+
+      <article class="card">
+        <svg viewBox="0 0 300 130" role="img" aria-label="A sound ray reflects from a wall at the same angle">
+          <defs><marker id="m1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--accent)"/></marker></defs>
+          <rect class="ill-solid" x="20" y="105" width="260" height="14"/>
+          <line class="ill" x1="150" y1="20" x2="150" y2="105" stroke-dasharray="4 4"/>
+          <line class="ill-wave" x1="60" y1="25" x2="148" y2="103" marker-end="url(#m1)"/>
+          <line class="ill-wave" x1="152" y1="103" x2="240" y2="25" marker-end="url(#m1)"/>
+          <text class="ill-text" x="112" y="70">θ</text><text class="ill-text" x="182" y="70">θ</text>
+          <text class="ill-text" x="215" y="100">hard surface</text>
+        </svg>
+        <h3>1. Reflection</h3>
+        <p>Sound returns from a hard surface. The angle of reflection is the same as the angle of incidence. This is correct when the surface is large compared to the wavelength.</p>
+        <p><b>In a room:</b> early reflections can make speech clearer. Strong late reflections cause echoes. Parallel hard walls can cause a "flutter echo".</p>
+      </article>
+
+      <article class="card">
+        <svg viewBox="0 0 300 130" role="img" aria-label="A strong sound ray goes into a porous layer and only a weak ray reflects">
+          <defs><marker id="m2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--accent)"/></marker></defs>
+          <rect class="ill-solid" x="20" y="110" width="260" height="10"/>
+          <rect class="ill-porous" x="20" y="80" width="260" height="30"/>
+          <line class="ill-wave" x1="60" y1="20" x2="146" y2="78" stroke-width="4" marker-end="url(#m2)"/>
+          <line class="ill-wave" x1="154" y1="78" x2="230" y2="28" stroke-width="1" stroke-dasharray="3 3" marker-end="url(#m2)"/>
+          <text class="ill-text" x="200" y="100">porous absorber</text>
+          <text class="ill-text" x="200" y="45">weak reflection</text>
+        </svg>
+        <h3>2. Absorption</h3>
+        <p>The material changes sound energy into a very small quantity of heat. Less sound reflects. The absorption coefficient α tells the part of the energy that does not reflect. α = 0 is full reflection. α = 1 is full absorption.</p>
+        <p><b>In a room:</b> absorption decreases reverberation and the noise level. This is the main function of acoustic panels. See the <a href="porous.html">porous absorber</a> calculator.</p>
+      </article>
+
+      <article class="card">
+        <svg viewBox="0 0 300 130" role="img" aria-label="A sound ray hits a stepped surface and goes out in many directions">
+          <defs><marker id="m3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--accent)"/></marker></defs>
+          <path class="ill-solid" d="M20,120 L20,100 L52,100 L52,88 L84,88 L84,106 L116,106 L116,92 L148,92 L148,84 L180,84 L180,102 L212,102 L212,90 L244,90 L244,98 L280,98 L280,120 Z"/>
+          <line class="ill-wave" x1="40" y1="15" x2="140" y2="80" marker-end="url(#m3)"/>
+          <line class="ill-wave" x1="150" y1="80" x2="40" y2="55" marker-end="url(#m3)"/>
+          <line class="ill-wave" x1="150" y1="80" x2="95" y2="20" marker-end="url(#m3)"/>
+          <line class="ill-wave" x1="150" y1="80" x2="170" y2="15" marker-end="url(#m3)"/>
+          <line class="ill-wave" x1="150" y1="80" x2="245" y2="25" marker-end="url(#m3)"/>
+          <line class="ill-wave" x1="150" y1="80" x2="275" y2="62" marker-end="url(#m3)"/>
+        </svg>
+        <h3>3. Diffusion</h3>
+        <p>An uneven surface scatters sound in many directions. The energy stays in the room, but it is spread in space and time.</p>
+        <p><b>In a room:</b> diffusers remove strong single reflections and echoes without much absorption. Thus the room stays "live". Books, shelves and uneven walls also diffuse sound.</p>
+      </article>
+
+      <article class="card">
+        <svg viewBox="0 0 300 130" role="img" aria-label="Sound waves bend over the top of a barrier into the shadow area">
+          <rect class="ill-solid" x="146" y="45" width="10" height="75"/>
+          <path class="ill-wave" d="M60,120 A60,60 0 0 1 60,40"/>
+          <path class="ill-wave" d="M90,120 A90,90 0 0 1 120,38"/>
+          <path class="ill-wave" d="M120,120 A120,120 0 0 1 146,46"/>
+          <path class="ill-wave2" d="M156,46 A30,30 0 0 1 186,76"/>
+          <path class="ill-wave2" d="M156,46 A55,55 0 0 1 211,101"/>
+          <path class="ill-wave2" d="M156,46 A80,80 0 0 1 236,120"/>
+          <circle cx="30" cy="80" r="5" style="fill:var(--accent)"/>
+          <text class="ill-text" x="200" y="45">sound bends</text><text class="ill-text" x="200" y="58">into the shadow</text>
+        </svg>
+        <h3>4. Diffraction</h3>
+        <p>Sound bends around the edges of objects and goes through openings. The effect is large when the object is small compared to the wavelength. Thus low frequencies bend around objects easily.</p>
+        <p><b>In a room:</b> a small panel absorbs more per square metre than a large surface, because sound bends into its edges. A screen or barrier stops high frequencies better than low frequencies.</p>
+      </article>
+
+      <article class="card">
+        <svg viewBox="0 0 300 130" role="img" aria-label="A sound ray curves down towards the ground because warm air is above cool air">
+          <defs><marker id="m5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--accent)"/></marker></defs>
+          <rect class="ill-solid" x="10" y="115" width="280" height="6"/>
+          <circle cx="30" cy="105" r="5" style="fill:var(--accent)"/>
+          <path class="ill-wave" d="M34,100 Q150,-10 268,108" marker-end="url(#m5)"/>
+          <text class="ill-text" x="210" y="20">warm air (faster)</text>
+          <text class="ill-text" x="110" y="108">cool air (slower)</text>
+        </svg>
+        <h3>5. Refraction</h3>
+        <p>Sound changes direction when its speed changes. In air, temperature and wind change the speed. Sound bends towards the slower air.</p>
+        <p><b>Outdoors:</b> on a calm night the air near the ground is often cooler. Sound then bends down and travels further. Downwind, sound also bends down. Indoors, refraction is usually not important.</p>
+      </article>
+
+      <article class="card">
+        <svg viewBox="0 0 300 130" role="img" aria-label="Sound goes through a wall and is quieter on the other side">
+          <defs><marker id="m6" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--accent)"/></marker></defs>
+          <rect class="ill-solid" x="140" y="15" width="22" height="105"/>
+          <line class="ill-wave" x1="25" y1="65" x2="136" y2="65" stroke-width="5" marker-end="url(#m6)"/>
+          <line class="ill-wave" x1="166" y1="65" x2="270" y2="65" stroke-width="1.5" marker-end="url(#m6)"/>
+          <text class="ill-text" x="30" y="50">loud room</text><text class="ill-text" x="200" y="50">quieter room</text>
+        </svg>
+        <h3>6. Transmission</h3>
+        <p>Sound goes through a wall, floor or door to the other side. The sound makes the wall vibrate, and the wall makes sound on the other side. Sound also goes through gaps and along the structure (flanking).</p>
+        <p><b>For insulation:</b> heavy, airtight constructions transmit less sound. In theory, each doubling of the mass of a single wall gives approximately 6 dB more insulation.</p>
+      </article>
+
+      <article class="card">
+        <svg viewBox="0 0 300 130" role="img" aria-label="Two waves in phase add to a larger wave; two waves out of phase cancel">
+          <path class="ill-wave" d="M15,35 q10,-18 20,0 t20,0 t20,0 t20,0 t20,0 t20,0"/>
+          <path class="ill-wave2" d="M15,35 q10,-18 20,0 t20,0 t20,0 t20,0 t20,0 t20,0" stroke-dasharray="4 3"/>
+          <text class="ill-text" x="150" y="30">in phase:</text><text class="ill-text" x="150" y="43">louder (+6 dB)</text>
+          <path class="ill-wave" d="M15,95 q10,-18 20,0 t20,0 t20,0 t20,0 t20,0 t20,0"/>
+          <path class="ill-wave2" d="M15,95 q10,18 20,0 t20,0 t20,0 t20,0 t20,0 t20,0" stroke-dasharray="4 3"/>
+          <text class="ill-text" x="150" y="90">out of phase:</text><text class="ill-text" x="150" y="103">cancel</text>
+          <line class="ill" x1="230" y1="95" x2="285" y2="95"/>
+        </svg>
+        <h3>7. Interference</h3>
+        <p>When two sound waves meet, they add. If the peaks agree (in phase), the sound is louder. If a peak meets a low point (out of phase), the sound cancels.</p>
+        <p><b>In a room:</b> direct sound and a reflection interfere. This makes dips at some frequencies ("comb filter"). A path difference of d metres gives the first dip at approximately 343 ÷ (2d) Hz. Room modes are also caused by interference.</p>
+      </article>
+    </div>
+    <div class="callout" style="max-width:80ch">Resonance is not one of the seven effects, but it is important for panels. An object or a volume of air vibrates strongly at its resonance frequency. Resonant absorbers use this to absorb low frequencies. See <a href="#types">types of absorbers</a>.</div>
+  </section>
+
+  <section class="doc" id="insulation">
+    <h2>4. Absorption is not sound insulation</h2>
+    <div class="callout"><b>Important:</b> acoustic panels on a wall do not stop sound from going to the next room. They change the sound in the room where they are.</div>
+    <p><b>Absorption</b> decreases reflections in a room. It makes the room less noisy and speech clearer. Light, porous materials are good absorbers.</p>
+    <p><b>Sound insulation</b> decreases the sound that goes through a wall. It needs mass, airtight joints and separate layers. Porous material in the cavity of a double wall helps the insulation. A thin panel on the surface of a wall does very little.</p>
+    <p>Absorption in the noisy room decreases the reverberant sound level there. Thus the sound that goes through the wall can decrease a little (some decibels), but this is not the same as insulation.</p>
+  </section>
+
+  <section class="doc" id="reverb">
+    <h2>5. Reverberation and echoes</h2>
+    <p>After a sound stops, reflections continue for some time. This is <b>reverberation</b>. The reverberation time (RT60) is the time for the level to decrease by 60 dB. A long RT60 makes speech difficult to understand and makes a room noisy.</p>
+    <p>An <b>echo</b> is a reflection that you hear as a separate sound. For speech this occurs when a strong reflection arrives approximately 50 ms or more after the direct sound. A <b>flutter echo</b> is a fast series of echoes between two parallel hard surfaces.</p>
+    <p>Sabine's formula connects RT60 to the room volume and the total absorption: T = 0.161 V / A. Use the <a href="reverberation.html">reverberation calculator</a> to see the effect of panels.</p>
+  </section>
+
+  <section class="doc" id="modes">
+    <h2>6. Room modes and bass</h2>
+    <p>In a small room, low frequencies make standing waves between the walls. These are <b>room modes</b>. At a mode, the bass is very loud at some positions and very quiet at other positions.</p>
+    <p>The lowest mode between two walls is at f = c ÷ (2L), where L is the distance between the walls. For a 5 m room this is approximately 34 Hz.</p>
+    <p>Bass absorbers are large or deep, because the wavelengths are long. At every mode the pressure is high in the corners of the room. Thus resonant (pressure) absorbers work well in corners. Use the <a href="room-modes.html">room modes calculator</a>.</p>
+  </section>
+
+  <section class="doc" id="types">
+    <h2>7. Types of absorbers</h2>
+    <p><b>Porous absorbers</b> (mineral wool, glass wool, foam, fabric) use friction of air in small channels. They work where the air moves fast. Air moves fastest a quarter wavelength from a wall. Thus a thicker layer, or an air gap behind it, absorbs lower frequencies.</p>
+    <p><b>Resonant absorbers</b> have a mass on an air spring. They absorb a band of frequencies near their resonance frequency. They work where the pressure is high, for example near walls and in corners.</p>
+    <div class="table-wrap"><table class="data">
+      <thead><tr><th>Type</th><th>Mass</th><th>Typical use</th><th>Calculator</th></tr></thead>
+      <tbody>
+        <tr><th>Porous absorber</th><td>–</td><td>Mid and high frequencies; lower with thickness or air gap</td><td><a href="porous.html">Porous</a></td></tr>
+        <tr><th>Perforated panel</th><td>Air in the holes</td><td>A selected band, often low and mid frequencies; hard surface</td><td><a href="perforated.html">Perforated</a></td></tr>
+        <tr><th>Slotted panel / slats</th><td>Air in the slots</td><td>A selected band; decorative wood surfaces</td><td><a href="slotted.html">Slotted</a></td></tr>
+        <tr><th>Microperforated panel</th><td>Air in very small holes</td><td>Mid frequencies without porous material; clean or transparent surfaces</td><td><a href="microperforated.html">MPP</a></td></tr>
+        <tr><th>Membrane absorber</th><td>The sheet</td><td>Low frequencies (bass)</td><td><a href="membrane.html">Membrane</a></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="doc" id="placement">
+    <h2>8. Where to put panels</h2>
+    <ol>
+      <li><b>First reflections.</b> Sit at the listening position. Ask a person to move a mirror flat along the wall. Where you can see the sound source in the mirror, put a panel.</li>
+      <li><b>Parallel surfaces.</b> Put panels on at least one of two parallel hard walls to stop flutter echoes.</li>
+      <li><b>Spread the panels.</b> Put panels on more than one surface. Absorption on only one surface gives a less even sound field.</li>
+      <li><b>Ceiling.</b> In offices, classrooms and meeting rooms, the ceiling is often the most effective large surface.</li>
+      <li><b>Bass.</b> Put resonant absorbers in or near corners. Put porous absorbers for bass with a deep air gap behind them.</li>
+      <li><b>Air gap.</b> A porous panel with an air gap behind it absorbs lower frequencies than the same panel on the wall.</li>
+    </ol>
+  </section>
+
+  <section class="doc" id="materials">
+    <h2>9. Materials and safety</h2>
+    <p><b>Flow resistivity</b> is the most important property of a porous material. Get it from the data sheet, or estimate it with the <a href="flow-resistivity.html">flow resistivity</a> tool.</p>
+    <p><b>Fabric.</b> The cover must let air through. Do a test: hold the fabric to your mouth and blow. If air goes through easily, the fabric is usually acoustically transparent.</p>
+    <p><b>Paint.</b> Do not paint porous absorbers. Paint closes the surface and decreases the absorption. On perforated panels, make sure that paint does not close the holes.</p>
+    <ul class="notes">
+      <li class="warn"><b>WARNING:</b> Mineral wool and glass wool fibres can cause irritation of the skin, eyes and lungs. Wear gloves, long sleeves, eye protection and a dust mask (FFP2 or better) when you cut or handle them. Cover the wool with fabric or a facing.</li>
+      <li class="warn"><b>WARNING:</b> Some materials burn easily. Many stone wool products have the highest fire class (Euroclass A1). Most foams burn. Make sure that all materials agree with the fire rules of your local building code.</li>
+      <li class="warn"><b>CAUTION:</b> Panels on ceilings and high walls must not fall. Use fixings that can hold the weight with a safety margin.</li>
+    </ul>
+  </section>
+
+  <section class="doc" id="glossary">
+    <h2>10. Glossary</h2>
+    <dl>
+      <dt><b>Absorption coefficient (α)</b></dt><dd>The part of the sound energy that a surface does not reflect. 0 = no absorption, 1 = full absorption.</dd>
+      <dt><b>Equivalent absorption area (A)</b></dt><dd>Surface area × α, added for all surfaces. Unit: m².</dd>
+      <dt><b>NRC</b></dt><dd>Noise reduction coefficient. The mean α at 250, 500, 1000 and 2000 Hz (ASTM C423).</dd>
+      <dt><b>αw</b></dt><dd>Weighted sound absorption coefficient (ISO 11654). One number from a reference curve, with classes A to E.</dd>
+      <dt><b>Flow resistivity (σ)</b></dt><dd>How much a porous material resists a flow of air, per metre of thickness. Unit: Pa·s/m².</dd>
+      <dt><b>Impedance</b></dt><dd>The ratio of sound pressure to air velocity at a surface. It tells how a surface reacts to sound.</dd>
+      <dt><b>Open area (ε)</b></dt><dd>The part of a panel surface that is holes or slots.</dd>
+      <dt><b>Resonance frequency (f₀)</b></dt><dd>The frequency at which a system vibrates most.</dd>
+      <dt><b>RT60</b></dt><dd>Reverberation time: the time for the sound level to decrease by 60 dB.</dd>
+      <dt><b>Diffuse field</b></dt><dd>A sound field in which sound comes from all directions with equal strength. Laboratory ratings use a diffuse field.</dd>
+    </dl>
+    <p class="refs">Further reading: T. J. Cox &amp; P. D'Antonio, <i>Acoustic Absorbers and Diffusers</i>. H. Kuttruff, <i>Room Acoustics</i>. F. A. Everest &amp; K. C. Pohlmann, <i>Master Handbook of Acoustics</i>.</p>
+  </section>
+</main>
+<script>
+(function () {
+  const list = document.getElementById('db-list'), sum = document.getElementById('db-sum');
+  const upd1 = () => {
+    const v = list.value.split(/[,;\s]+/).filter(Boolean).map(Number);
+    if (!v.length || v.some((x) => !Number.isFinite(x))) { sum.textContent = 'Type numbers'; return; }
+    const t = 10 * Math.log10(v.reduce((s, x) => s + Math.pow(10, x / 10), 0));
+    sum.textContent = t.toFixed(1) + ' dB';
+  };
+  list.addEventListener('input', upd1); upd1();
+  const L = document.getElementById('d-L'), r1 = document.getElementById('d-r1'), r2 = document.getElementById('d-r2'), out = document.getElementById('d-out');
+  const upd2 = () => {
+    const a = +L.value, b = +r1.value, c = +r2.value;
+    if (!(b > 0 && c > 0) || !Number.isFinite(a)) { out.textContent = 'Type numbers'; return; }
+    out.textContent = (a - 20 * Math.log10(c / b)).toFixed(1) + ' dB';
+  };
+  [L, r1, r2].forEach((i) => i.addEventListener('input', upd2)); upd2();
+})();
+</script>
+</body>
+</html>

@@ -18,6 +18,8 @@
     { href: 'reverberation.html', label: 'Reverberation' },
     { href: 'room-modes.html', label: 'Room modes' },
     { href: 'sound-in-air.html', label: 'Sound in air' },
+    { href: 'learn.html', label: 'Learn' },
+    { href: 'project.html', label: 'Project' },
   ];
 
   const el = (tag, attrs = {}, ...children) => {
@@ -258,7 +260,11 @@
   const SVGNS = 'http://www.w3.org/2000/svg';
   const sv = (tag, attrs = {}) => {
     const e = document.createElementNS(SVGNS, tag);
-    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    for (const [k, v] of Object.entries(attrs)) {
+      // CSS variables do not work in SVG presentation attributes: use inline style.
+      if ((k === 'stroke' || k === 'fill') && typeof v === 'string' && v.startsWith('var(')) e.style.setProperty(k, v);
+      else e.setAttribute(k, v);
+    }
     return e;
   };
 
@@ -312,7 +318,7 @@
     svg.append(g);
 
     opts.series.forEach((s, i) => {
-      const color = s.color || cssVar(`--series-${(i % 5) + 1}`);
+      const color = s.color || `var(--series-${(i % 5) + 1})`;
       if (opts.stems || s.stems) {
         for (const [x, y] of s.points) {
           g.append(sv('line', { x1: tx(x), x2: tx(x), y1: ty(opts.yMin), y2: ty(y), stroke: color, 'stroke-width': s.width || 2 }));
@@ -336,7 +342,7 @@
     if (opts.series.length > 1 || opts.legend) {
       const lg = el('div', { class: 'legend' });
       opts.series.forEach((s, i) => {
-        const color = s.color || cssVar(`--series-${(i % 5) + 1}`);
+        const color = s.color || `var(--series-${(i % 5) + 1})`;
         lg.append(el('span', {}, el('i', { class: s.dash ? 'dash' : '', style: `border-top-color:${color}` }), s.name));
       });
       container.append(lg);
@@ -385,6 +391,67 @@
       });
     }
   }
+
+  /* ---------- cross-section diagram ---------- */
+  function diagram(container, parts) {
+    // parts: list from the ROOM side to the WALL: {kind:'facing'|'porous'|'air'|'membrane', label, mm}
+    container.innerHTML = '';
+    const W = 360;
+    const H = 150;
+    const total = parts.reduce((s, p) => s + Math.max(p.mm, 1), 0) || 1;
+    const avail = W - 84;
+    let x = 46;
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', 'Cross-section of the construction');
+    const mk = (tag, a) => {
+      const e = sv(tag, a);
+      svg.append(e);
+      return e;
+    };
+    const txt = (x0, y0, s, anchor = 'middle') => {
+      const t = mk('text', { x: x0, y: y0, 'text-anchor': anchor });
+      t.textContent = s;
+    };
+    // sound arrow
+    mk('line', { x1: 6, y1: 40, x2: 38, y2: 40, stroke: 'var(--muted)', 'stroke-width': 2 });
+    mk('path', { d: 'M38,36 L44,40 L38,44 Z', fill: 'var(--muted)' });
+    txt(4, 30, 'Sound', 'start');
+    const minW = 10;
+    for (const p of parts) {
+      let w = (Math.max(p.mm, 1) / total) * avail;
+      if (p.kind === 'facing' || p.kind === 'membrane') w = Math.max(minW, Math.min(w, 18));
+      else w = Math.max(w, 18);
+      let fill;
+      if (p.kind === 'porous') fill = 'var(--porous)';
+      else if (p.kind === 'air') fill = 'none';
+      else fill = 'var(--panel)';
+      mk('rect', {
+        x,
+        y: 20,
+        width: w,
+        height: 90,
+        fill,
+        stroke: 'var(--border)',
+        'stroke-dasharray': p.kind === 'air' ? '3 3' : '',
+      });
+      if (p.kind === 'facing') {
+        // draw openings
+        for (let yy = 30; yy < 105; yy += 16) mk('rect', { x, y: yy, width: w, height: 5, fill: 'var(--surface)' });
+      }
+      txt(x + w / 2, 124, p.mm >= 10 ? Math.round(p.mm) + ' mm' : (+p.mm.toFixed(2)) + ' mm');
+      const lab = mk('text', { x: x + w / 2, y: 142, 'text-anchor': 'middle' });
+      lab.textContent = p.label;
+      x += w;
+    }
+    // wall
+    mk('rect', { x, y: 10, width: 14, height: 110, fill: 'var(--muted)' });
+    txt(x + 7, 8, 'Wall');
+    container.append(svg);
+  }
+
 
   const FREQ_TICKS = [31.5, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
   const freqTickFmt = (f) => (f >= 1000 ? f / 1000 + 'k' : String(f));
@@ -471,6 +538,33 @@
     }
   }
 
+  /* Project document store (in this browser only) */
+  const PROJECT_KEY = 'ac-project';
+  const emptyProject = () => ({ name: '', room: '', author: '', date: new Date().toISOString().slice(0, 10), notes: '', items: [] });
+  const project = {
+    load() {
+      try {
+        const p = JSON.parse(storageGet(PROJECT_KEY));
+        if (p && Array.isArray(p.items)) return { ...emptyProject(), ...p };
+      } catch (_) {
+        /* ignore */
+      }
+      return emptyProject();
+    },
+    save(p) {
+      storageSet(PROJECT_KEY, JSON.stringify(p));
+    },
+    addItem(item) {
+      const p = project.load();
+      item.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      item.savedAt = new Date().toISOString();
+      p.items.push(item);
+      project.save(p);
+      return item;
+    },
+    empty: emptyProject,
+  };
+
   document.addEventListener('DOMContentLoaded', header);
 
   root.UI = {
@@ -488,7 +582,9 @@
     kpis,
     copyLink,
     savePanelResult,
+    project,
     loadPanelResult,
     cssVar,
+    diagram,
   };
 })(this);

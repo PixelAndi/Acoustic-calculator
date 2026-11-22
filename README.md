@@ -17,6 +17,8 @@ Web calculators for the design of acoustic absorber panels. The calculators are 
 | `reverberation.html` | RT60 before and after you add panels (Sabine, Eyring) |
 | `room-modes.html` | Room modes and Schroeder frequency |
 | `sound-in-air.html` | Speed of sound, air properties, wavelength |
+| `project.html` | Project document: build data, procedure, inspection list and results of saved designs |
+| `learn.html` | Introduction to acoustics: the 7 ways sound interacts with the environment, decibels, absorbers, placement, safety |
 
 The absorber pages calculate for normal incidence, one angle, or a diffuse field (Paris integral). They show the absorption by 1/3-octave and octave band, NRC, SAA and αw. You can keep curves to compare them, download a CSV file, and copy a link that contains the inputs.
 
@@ -24,6 +26,18 @@ The absorber pages calculate for normal incidence, one angle, or a diffuse field
 
 1. Open `index.html` in a web browser.
 2. Select a calculator.
+
+### Project document
+
+1. On a panel page, make a design.
+2. In "Add to project document", type a panel name, the panel size and the quantity. Click "Add to project".
+3. Do steps 1 and 2 again for all panel types in the project.
+4. Open `project.html`. Type the project name, room, author and notes.
+5. Click "Print or save as PDF". To get a PDF, select "Save as PDF" as the printer.
+
+The document has a summary, a bill of quantities, and for each design: a cross-section, build data (hole or slot layout, frame depth, absorber volume), safety warnings, a build procedure, an inspection check list, the predicted curve and the design inputs.
+
+The project is kept in the browser (local storage). Use "Download project file" to keep a copy, and "Open project file" to use it again on a different computer.
 
 To publish the pages with GitHub Pages, set the source to the root of the branch. No build is necessary.
 
@@ -61,6 +75,7 @@ css/style.css        styles (light and dark theme)
 js/core.js           physics (browser and Node.js)
 js/ui.js             forms, charts, tables
 js/absorber.js       shared logic of the absorber pages
+js/project.js        project document
 test/core.test.js    tests
 ```
 

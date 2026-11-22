@@ -61,6 +61,7 @@ Resonance (empty cavity, depth d):  f₀ = (c / 2π) √(ε / (t′ d))</div>
 <script>
 const { cavityFields, cavity } = AbsorberPage;
 AbsorberPage.init(document.getElementById('calc'), {
+  type: 'perforated',
   name: 'Perforated',
   file: 'perforated-panel.csv',
   cavityOption: true,

@@ -46,67 +46,6 @@
     { id: 'temp', label: 'Air temperature', unit: '°C', value: 20, min: -20, max: 50 },
   ];
 
-  /* ---------- cross-section diagram ---------- */
-  function diagram(container, parts) {
-    // parts: list from the ROOM side to the WALL: {kind:'facing'|'porous'|'air'|'membrane', label, mm}
-    container.innerHTML = '';
-    const W = 360;
-    const H = 150;
-    const total = parts.reduce((s, p) => s + Math.max(p.mm, 1), 0) || 1;
-    const avail = W - 84;
-    let x = 46;
-    const NS = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-    svg.setAttribute('role', 'img');
-    svg.setAttribute('aria-label', 'Cross-section of the construction');
-    const mk = (tag, a) => {
-      const e = document.createElementNS(NS, tag);
-      for (const k in a) e.setAttribute(k, a[k]);
-      svg.append(e);
-      return e;
-    };
-    const txt = (x0, y0, s, anchor = 'middle') => {
-      const t = mk('text', { x: x0, y: y0, 'text-anchor': anchor });
-      t.textContent = s;
-    };
-    // sound arrow
-    mk('line', { x1: 6, y1: 40, x2: 38, y2: 40, stroke: UI.cssVar('--muted'), 'stroke-width': 2 });
-    mk('path', { d: 'M38,36 L44,40 L38,44 Z', fill: UI.cssVar('--muted') });
-    txt(4, 30, 'Sound', 'start');
-    const minW = 10;
-    for (const p of parts) {
-      let w = (Math.max(p.mm, 1) / total) * avail;
-      if (p.kind === 'facing' || p.kind === 'membrane') w = Math.max(minW, Math.min(w, 18));
-      else w = Math.max(w, 18);
-      let fill;
-      if (p.kind === 'porous') fill = '#d8c27a';
-      else if (p.kind === 'air') fill = 'none';
-      else fill = '#9aa4ad';
-      mk('rect', {
-        x,
-        y: 20,
-        width: w,
-        height: 90,
-        fill,
-        stroke: UI.cssVar('--border'),
-        'stroke-dasharray': p.kind === 'air' ? '3 3' : '',
-      });
-      if (p.kind === 'facing') {
-        // draw openings
-        for (let yy = 30; yy < 105; yy += 16) mk('rect', { x, y: yy, width: w, height: 5, fill: UI.cssVar('--surface') });
-      }
-      txt(x + w / 2, 124, p.mm >= 10 ? Math.round(p.mm) + ' mm' : (+p.mm.toFixed(2)) + ' mm');
-      const lab = mk('text', { x: x + w / 2, y: 142, 'text-anchor': 'middle' });
-      lab.textContent = p.label;
-      x += w;
-    }
-    // wall
-    mk('rect', { x, y: 10, width: 14, height: 110, fill: UI.cssVar('--muted') });
-    txt(x + 7, 8, 'Wall');
-    container.append(svg);
-  }
-
   /**
    * opts = { name, fields, build(v, air) → { construction, parts, info, resonance, notes } , cavityOption }
    */
@@ -150,6 +89,28 @@
       );
     bandTabs.append(mkTab('third', '1/3 octave'), mkTab('octave', 'Octave'));
 
+    // ---- "Add to project" card ----
+    const pjLabel = el('input', { type: 'text', id: 'pj-label', maxlength: '80', placeholder: 'For example: Rear wall panels' });
+    const pjW = el('input', { type: 'number', id: 'pj-w', min: '10', step: '1', value: '1200', inputmode: 'decimal' });
+    const pjH = el('input', { type: 'number', id: 'pj-h', min: '10', step: '1', value: '600', inputmode: 'decimal' });
+    const pjQ = el('input', { type: 'number', id: 'pj-q', min: '1', step: '1', value: '1', inputmode: 'numeric' });
+    const pjBtn = el('button', { class: 'btn primary', type: 'button' }, 'Add to project');
+    const pjMsg = el('div', { class: 'derived', role: 'status' });
+    const row = (id, label, input, unit) =>
+      el('div', { class: 'field' }, el('label', { for: id }, label), el('div', { class: 'input-wrap' + (unit ? ' has-unit' : '') }, input, unit ? el('span', { class: 'unit' }, unit) : null));
+    const projectCard = el(
+      'div',
+      { class: 'card no-print' },
+      el('h2', {}, 'Add to project document'),
+      el('p', { class: 'derived' }, 'Save this design with the panel size and quantity. The project page makes a document that you can print or save as PDF.'),
+      el('div', { class: 'field full' }, el('label', { for: 'pj-label' }, 'Panel name'), el('div', { class: 'input-wrap' }, pjLabel)),
+      row('pj-w', 'Panel width', pjW, 'mm'),
+      row('pj-h', 'Panel height', pjH, 'mm'),
+      row('pj-q', 'Quantity', pjQ, 'pcs'),
+      el('div', { class: 'btn-row' }, pjBtn),
+      pjMsg
+    );
+
     const out = el(
       'div',
       {},
@@ -163,6 +124,7 @@
         saveMsg,
         notesBox
       ),
+      projectCard,
       el('div', { class: 'card' }, el('h2', {}, 'Absorption coefficient by band'), bandTabs, bandBox)
     );
     mount.classList.add('calc');
@@ -203,10 +165,10 @@
       for (const p of curve) if (p[1] > peak[1]) peak = p;
 
       const incLabel = v.incidence === 'normal' ? 'normal incidence' : v.incidence === 'angle' ? `${v.angle}° incidence` : 'diffuse field';
-      last = { curve, third, octave, rt, name: `${opts.name} – ${b.short || ''} (${incLabel})`, v };
+      last = { curve, third, octave, rt, name: `${opts.name} – ${b.short || ''} (${incLabel})`, v, b, peak, incLabel, air: a };
 
       // Derived values + diagram
-      diagram(diag, b.parts);
+      UI.diagram(diag, b.parts);
       derived.innerHTML = '';
       for (const [label, value] of b.info || []) derived.append(el('div', {}, label + ': ', el('b', {}, value)));
       derived.append(el('div', {}, 'Speed of sound: ', el('b', {}, fmt(a.c, 1) + ' m/s'), ' · Air density: ', el('b', {}, fmt(a.rho, 3) + ' kg/m³')));
@@ -331,7 +293,63 @@
       saveMsg.append('Saved. Open the ', el('a', { href: 'reverberation.html' }, 'reverberation'), ' or ', el('a', { href: 'ratings.html' }, 'ratings'), ' page and click "Load last panel result".');
     });
 
-    const f = UI.form(formBox, [...opts.fields, ...COMMON_FIELDS(opts)], compute);
+    const allFields = [...opts.fields, ...COMMON_FIELDS(opts)];
+
+    /** Inputs as readable rows (only the inputs that are visible for these values). */
+    function inputRows(v) {
+      const rows = [];
+      for (const fd of allFields) {
+        if (!fd.id || (fd.showIf && !fd.showIf(v))) continue;
+        let val = v[fd.id];
+        if (fd.type === 'select') val = (fd.options.find((o) => o.value === val) || {}).label || val;
+        else if (fd.type === 'checkbox') val = val ? 'Yes' : 'No';
+        else val = String(val) + (fd.unit ? ' ' + fd.unit : '');
+        rows.push([fd.label, val]);
+      }
+      return rows;
+    }
+
+    pjBtn.addEventListener('click', () => {
+      if (!last) return;
+      const W = Number(pjW.value), H = Number(pjH.value), Q = Math.round(Number(pjQ.value));
+      if (!(W >= 10 && H >= 10 && Q >= 1)) {
+        pjMsg.textContent = 'Type a panel width and height of 10 mm or more, and a quantity of 1 or more.';
+        return;
+      }
+      const thin = last.curve.filter((_, i) => i % 2 === 0);
+      UI.project.addItem({
+        type: opts.type,
+        page: location.pathname.split('/').pop(),
+        hash: location.hash,
+        label: pjLabel.value.trim() || opts.name + ' panel',
+        model: last.name,
+        values: last.v,
+        inputs: inputRows(last.v),
+        info: last.b.info || [],
+        parts: last.b.parts,
+        resonance: last.b.resonance ? { label: last.b.resonance.label, f: last.b.resonance.f, sub: last.b.resonance.sub || '' } : null,
+        notes: (last.b.notes || []).map((x) => x.text),
+        incidence: last.incLabel,
+        air: { c: last.air.c, rho: last.air.rho, tempC: last.air.tempC },
+        peak: last.peak,
+        third: last.third,
+        octave: last.octave,
+        ratings: {
+          nrc: last.rt.nrc ? last.rt.nrc.value : null,
+          saa: last.rt.saa ? last.rt.saa.value : null,
+          aw: last.rt.alphaW ? last.rt.alphaW.value : null,
+          indicators: last.rt.alphaW ? last.rt.alphaW.indicators : '',
+          cls: last.rt.alphaW ? last.rt.alphaW.cls : null,
+        },
+        curve: thin,
+        panel: { w: W, h: H, qty: Q },
+      });
+      const n = UI.project.load().items.length;
+      pjMsg.innerHTML = '';
+      pjMsg.append(`Added. The project has ${n} design${n === 1 ? '' : 's'}. `, el('a', { href: 'project.html' }, 'Open the project document'), '.');
+    });
+
+    const f = UI.form(formBox, allFields, compute);
     document.addEventListener('themechange', () => f.update());
     return f;
   }

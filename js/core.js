@@ -336,6 +336,45 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Build layout (for the project document)                             */
+  /* ------------------------------------------------------------------ */
+  /**
+   * Hole layout on a panel W × H (m), hole radius r, spacing D.
+   * Edge margin = D/2 (from panel edge to the first hole centre), so the
+   * local open area is the same as the nominal value.
+   * Triangular grid: rows at D·√3/2, every second row moved by D/2.
+   */
+  function holeLayout({ W, H, D, r, pattern = 'square' }) {
+    const margin = D / 2;
+    let rows;
+    let total;
+    let perRowA;
+    let perRowB;
+    let rowPitch;
+    if (pattern === 'triangular') {
+      rowPitch = (D * Math.sqrt(3)) / 2;
+      rows = H >= D ? Math.floor((H - D) / rowPitch + 1e-9) + 1 : 0;
+      perRowA = Math.floor(W / D + 1e-9);
+      perRowB = Math.max(0, Math.floor(W / D - 0.5 + 1e-9));
+      total = Math.ceil(rows / 2) * perRowA + Math.floor(rows / 2) * perRowB;
+    } else {
+      rowPitch = D;
+      rows = Math.floor(H / D + 1e-9);
+      perRowA = perRowB = Math.floor(W / D + 1e-9);
+      total = rows * perRowA;
+    }
+    const openArea = (total * Math.PI * r * r) / (W * H);
+    return { margin, rowPitch, rows, perRowA, perRowB, total, openArea, perSquareMetre: total / (W * H) };
+  }
+
+  /** Slot layout: slots parallel to H, pitch across W, margin pitch/2 at every edge. */
+  function slotLayout({ W, H, pitch, w }) {
+    const count = Math.floor(W / pitch + 1e-9);
+    const length = Math.max(0, H - pitch);
+    return { count, length, margin: pitch / 2, openArea: (count * w * length) / (W * H), slatWidth: pitch - w };
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Resonance estimates                                                 */
   /* ------------------------------------------------------------------ */
   /** Helmholtz resonance of a perforated / slotted sheet over an air cavity (lumped, normal incidence). */
@@ -583,6 +622,8 @@
     microperforatedFacing,
     maaApproxImpedance,
     membraneFacing,
+    holeLayout,
+    slotLayout,
     helmholtzFrequency,
     helmholtzDepth,
     membraneFrequency,

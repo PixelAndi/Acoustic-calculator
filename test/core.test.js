@@ -303,3 +303,24 @@ test('Eyring inverse returns the absorption area that gives the measured RT', ()
   const T = AC.eyringRT({ V, S, alphaMean: A / S, c });
   assert.ok(Math.abs(T - 0.9) < 1e-12);
 });
+
+test('hole layout counts (square and triangular grid)', () => {
+  // 600 × 600 mm, 32 mm square grid: 18 × 18 holes, margin 16 mm
+  let L = AC.holeLayout({ W: 0.6, H: 0.6, D: 0.032, r: 0.004, pattern: 'square' });
+  assert.equal(L.rows, 18);
+  assert.equal(L.total, 324);
+  assert.ok(Math.abs(L.margin - 0.016) < 1e-12);
+  // 100 × 100 mm, 20 mm triangular grid: rows at 17.32 mm → 5 rows; rows of 5 and 4
+  L = AC.holeLayout({ W: 0.1, H: 0.1, D: 0.02, r: 0.002, pattern: 'triangular' });
+  assert.equal(L.rows, 5);
+  assert.equal(L.perRowA, 5);
+  assert.equal(L.perRowB, 4);
+  assert.equal(L.total, 3 * 5 + 2 * 4);
+});
+
+test('slot layout', () => {
+  const L = AC.slotLayout({ W: 1.2, H: 0.6, pitch: 0.05, w: 0.005 });
+  assert.equal(L.count, 24);
+  assert.ok(Math.abs(L.length - 0.55) < 1e-12);
+  assert.ok(Math.abs(L.slatWidth - 0.045) < 1e-12);
+});
