@@ -15,6 +15,7 @@
     multilayer: 'Multilayer absorber',
     cloud: 'Cloud or baffle',
     diffuser: 'Diffuser',
+    room: 'Room treatment plan',
   };
 
   let P = UI.project.load();
@@ -325,7 +326,7 @@
       String(i + 1),
       it.label,
       TYPE_NAMES[it.type] || it.type,
-      `${fmt(it.panel.w, 0)} × ${fmt(it.panel.h, 0)}`,
+      it.panel.w > 0 ? `${fmt(it.panel.w, 0)} × ${fmt(it.panel.h, 0)}` : '–',
       String(it.panel.qty),
       fmt(datas[i].qty.area, 2),
       it.ratings && it.ratings.nrc !== null ? fmt(it.ratings.nrc) : '–',

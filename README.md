@@ -6,6 +6,7 @@ Web calculators for the design of acoustic absorber panels. The calculators are 
 
 | Page | What it calculates |
 | --- | --- |
+| `advisor.html` | Room treatment advisor: target RT60 for the room use, absorption needed, ranked solutions (panels, shop product types, your own products from data sheets), furniture tips |
 | `panels.html` | Visual guide to all panel types, with a link to the correct calculator |
 | `porous.html` | Absorption of a porous layer on a wall, with or without an air gap |
 | `perforated.html` | Absorption of a panel with round holes over a cavity |
@@ -86,8 +87,15 @@ js/ui.js             forms, charts, tables
 js/absorber.js       shared logic of the absorber pages
 js/project.js        project document
 js/visual.js         panel drawings (SVG)
+js/treatments.js     treatment catalogue for the advisor
 test/core.test.js    tests
 ```
+
+## Room advisor: sources and assumptions
+
+- Target RT60: DIN 18041:2016 group A formulas (music, presentation, communication, inclusive, sport), ITU-R BS.1116 for listening rooms, and guide values (marked as such) where no standard applies.
+- Shop products are shown as product types with assumed dimensions and assumed felt flow resistivity. The advisor does not contain product data, prices or offers. Type data-sheet values in "My products" for a reliable result.
+- Furniture (bookshelves, sofas, rugs, curtains) is recommended, but not counted in the numbers.
 
 ## Limits
 

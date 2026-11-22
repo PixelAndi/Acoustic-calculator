@@ -7,6 +7,7 @@
 
   const PAGES = [
     { href: 'index.html', label: 'Home' },
+    { href: 'advisor.html', label: 'Room advisor' },
     { href: 'panels.html', label: 'Panel types' },
     { href: 'porous.html', label: 'Porous' },
     { href: 'perforated.html', label: 'Perforated' },

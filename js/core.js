@@ -274,8 +274,8 @@
           return { alpha: reflection(s.Z, theta, a).alpha, Z: s.Z, valid: s.valid };
         };
     if (incidence.mode === 'diffuse') {
-      // Paris formula: α_d = ∫0^{π/2} α(θ) sin(2θ) dθ  (midpoint rule, 0.5° steps)
-      const n = 180;
+      // Paris formula: α_d = ∫0^{π/2} α(θ) sin(2θ) dθ  (midpoint rule, 0.5° steps by default)
+      const n = incidence.steps || 180;
       const h = Math.PI / 2 / n;
       let sum = 0;
       let sumTau = 0;
@@ -842,6 +842,132 @@
     return S * (1 - Math.exp(-(SABINE_K * V) / (c * S * T)));
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Treatment advisor                                                   */
+  /* ------------------------------------------------------------------ */
+  /**
+   * Area of one or two treatments that best gives the target absorption.
+   * Minimises  Σ_b w_b (Σ_j S_j α_jb − ΔA_b)²  with S_j ≥ 0  (exact for 1 or 2 treatments:
+   * the unconstrained solution if it is non-negative, otherwise the best solution on the boundary).
+   * @param {number[]} dA   absorption to add per band (m²); may be negative
+   * @param {number[][]} alphas  α per band for each treatment (1 or 2 treatments)
+   * @param {number[]} w    weight per band
+   * @returns {{ areas: number[], residual: number }}
+   */
+  function fitTreatmentAreas(dA, alphas, w) {
+    const nb = dA.length;
+    const res = (S) => {
+      let r = 0;
+      for (let b = 0; b < nb; b++) {
+        let a = -dA[b];
+        for (let j = 0; j < S.length; j++) a += S[j] * alphas[j][b];
+        r += w[b] * a * a;
+      }
+      return r;
+    };
+    const single = (al) => {
+      let num = 0;
+      let den = 0;
+      for (let b = 0; b < nb; b++) {
+        num += w[b] * al[b] * dA[b];
+        den += w[b] * al[b] * al[b];
+      }
+      return den > 0 ? Math.max(0, num / den) : 0;
+    };
+    if (alphas.length === 1) {
+      const S = [single(alphas[0])];
+      return { areas: S, residual: res(S) };
+    }
+    const [a1, a2] = alphas;
+    let s11 = 0, s12 = 0, s22 = 0, r1 = 0, r2 = 0;
+    for (let b = 0; b < nb; b++) {
+      s11 += w[b] * a1[b] * a1[b];
+      s12 += w[b] * a1[b] * a2[b];
+      s22 += w[b] * a2[b] * a2[b];
+      r1 += w[b] * a1[b] * dA[b];
+      r2 += w[b] * a2[b] * dA[b];
+    }
+    const det = s11 * s22 - s12 * s12;
+    const cands = [[0, 0], [single(a1), 0], [0, single(a2)]];
+    if (Math.abs(det) > 1e-12 * (s11 * s22 + 1e-30)) {
+      const x = (r1 * s22 - r2 * s12) / det;
+      const y = (s11 * r2 - s12 * r1) / det;
+      if (x >= 0 && y >= 0) cands.push([x, y]);
+    }
+    let best = null;
+    for (const S of cands) {
+      const r = res(S);
+      if (!best || r < best.residual - 1e-15) best = { areas: S, residual: r };
+    }
+    return best;
+  }
+
+  /* Target reverberation times ------------------------------------------ */
+  const OCT6 = [125, 250, 500, 1000, 2000, 4000];
+  // DIN 18041:2016 group A tolerance range (ratio T / T_soll) per octave band.
+  const DIN_TOL = { 125: [0.65, 1.45], 250: [0.8, 1.2], 500: [0.8, 1.2], 1000: [0.8, 1.2], 2000: [0.8, 1.2], 4000: [0.65, 1.2] };
+  const DIN_TOL_SPEECH = { 125: [0.65, 1.2], 250: [0.8, 1.2], 500: [0.8, 1.2], 1000: [0.8, 1.2], 2000: [0.8, 1.2], 4000: [0.65, 1.2] };
+  const flat = (lo, hi) => Object.fromEntries(OCT6.map((o) => [o, [lo, hi]]));
+  const lg = Math.log10;
+
+  /**
+   * Room uses with their target. din: DIN 18041:2016 group A formula T_soll(V).
+   * advice: placement rules (ASD-STE100 style).
+   */
+  const ROOM_USES = [
+    { id: 'living', label: 'Living room or home office', kind: 'guide', T: 0.5, tol: flat(0.8, 1.2),
+      note: 'No standard gives a target for living rooms. The advisor uses 0.5 s as a guide value.',
+      advice: ['Use soft furnishings first: a rug, curtains, a sofa and a full bookshelf.', 'Then add panels on the walls at ear height, and spread them around the room.'] },
+    { id: 'video', label: 'Video calls, podcast or voice recording', kind: 'guide', T: 0.3, tol: flat(0.7, 1.3),
+      note: 'No standard gives a target for small voice rooms. The advisor uses 0.3 s as a guide value.',
+      advice: ['Put absorbers on the wall behind you, on the wall in front of you and on the side walls at mouth height.', 'Put an absorber or a rug where the sound from your mouth reflects from the desk or floor.'] },
+    { id: 'studio', label: 'Studio control room or critical listening', kind: 'bs1116',
+      advice: ['Put absorbers at the first reflection points on the side walls and the ceiling between the loudspeakers and the listener.', 'Put bass absorbers in the corners, mostly behind the loudspeakers.', 'Use diffusion or thick absorbers on the rear wall.', 'Make the room symmetric from left to right.'] },
+    { id: 'cinema', label: 'Home cinema', kind: 'bs1116',
+      note: 'No single standard gives a target for home cinemas. The advisor uses the listening-room value of ITU-R BS.1116 as a guide.',
+      advice: ['Put absorbers at the first reflection points on the side walls.', 'Put bass absorbers in the corners.', 'Treat the wall behind the seats with absorbers or diffusers.'] },
+    { id: 'music', label: 'Music practice or rehearsal room (DIN 18041 A1)', kind: 'din', f: (V) => 0.45 * lg(V) + 0.07, vmin: 30, vmax: 1000, tol: DIN_TOL, src: 'DIN 18041 A1',
+      advice: ['Use a mix of absorbers and diffusers. Too much absorption makes music sound dull.', 'Include bass absorbers. Thin panels do not control bass.'] },
+    { id: 'lecture', label: 'Lecture or presentation room (DIN 18041 A2)', kind: 'din', f: (V) => 0.37 * lg(V) - 0.14, vmin: 50, vmax: 5000, tol: DIN_TOL_SPEECH, src: 'DIN 18041 A2',
+      advice: ['Keep the ceiling above the speaker reflective. It sends speech to the audience.', 'Put absorbers on the rear wall to stop echoes back to the speaker.', 'Put absorbers on the ceiling over the audience.'] },
+    { id: 'meeting', label: 'Meeting room or classroom (DIN 18041 A3)', kind: 'din', f: (V) => 0.32 * lg(V) - 0.17, vmin: 30, vmax: 5000, tol: DIN_TOL_SPEECH, src: 'DIN 18041 A3',
+      advice: ['Put most of the absorption on the ceiling.', 'Add absorbers on the rear wall to stop echoes.', 'Use wall panels at head height if the ceiling cannot be treated.'] },
+    { id: 'inclusive', label: 'Room for people with hearing loss, or inclusive teaching (DIN 18041 A4)', kind: 'din', f: (V) => 0.26 * lg(V) - 0.14, vmin: 30, vmax: 500, tol: DIN_TOL_SPEECH, src: 'DIN 18041 A4',
+      advice: ['Treat the ceiling and the rear wall.', 'Include bass absorption: long low-frequency reverberation decreases speech clarity.'] },
+    { id: 'sport', label: 'Sports hall (DIN 18041 A5)', kind: 'din', f: (V) => 0.75 * lg(V) - 1.0, vmin: 200, vmax: 10000, tol: DIN_TOL_SPEECH, src: 'DIN 18041 A5',
+      advice: ['Use impact-resistant absorbers or ceiling baffles.', 'Treat the ceiling and the upper walls.'] },
+  ];
+
+  /**
+   * Target RT for a room use and volume V (m³).
+   * @returns { T, tol: {band: [lo, hi]} (ratio to T), shape: {band: centre ratio}, source, note, outOfRange }
+   */
+  function targetRT(useId, V) {
+    const u = ROOM_USES.find((x) => x.id === useId) || ROOM_USES[0];
+    let T;
+    let tol;
+    let source;
+    let outOfRange = null;
+    if (u.kind === 'din') {
+      T = u.f(V);
+      tol = u.tol;
+      source = u.src;
+      if (V < u.vmin || V > u.vmax) outOfRange = `${u.src} gives this formula for ${u.vmin}–${u.vmax} m³. The room volume is outside this range.`;
+    } else if (u.kind === 'bs1116') {
+      T = 0.25 * Math.cbrt(V / 100); // ITU-R BS.1116, Tm = 0.25 (V/V0)^(1/3), V0 = 100 m³
+      const dT = 0.05 / T; // ±0.05 s from 200 Hz to 4 kHz
+      tol = { 125: [1 - dT, 1 + 0.3 / T], 250: [1 - dT, 1 + dT], 500: [1 - dT, 1 + dT], 1000: [1 - dT, 1 + dT], 2000: [1 - dT, 1 + dT], 4000: [1 - dT, 1 + dT] };
+      source = 'ITU-R BS.1116';
+    } else {
+      T = u.T;
+      tol = u.tol;
+      source = 'guide value';
+    }
+    const shape = {};
+    for (const o of OCT6) shape[o] = Math.min(Math.max(1, tol[o][0]), tol[o][1]);
+    return { T, tol, shape, source, note: u.note || null, outOfRange, use: u };
+  }
+
   /** Room modes of a rectangular room with rigid walls. */
   function roomModes({ L, W, H, c, fMax, maxOrder = 20 }) {
     const out = [];
@@ -915,6 +1041,9 @@
     absorptionAreaFromRT,
     absorptionAreaFromRTEyring,
     roomModes,
+    fitTreatmentAreas,
+    ROOM_USES,
+    targetRT,
     schroederFrequency,
   };
 });

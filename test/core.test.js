@@ -459,3 +459,56 @@ test('1D polar via the 2D cut equals diffuserPolar for a one-row grid without fi
   const b = AC.diffuserPolar2DCut({ grid: depths.map((d) => [d]), w: 0.05, periods: 2, f: 1300, c: 343 }).points;
   a.forEach((p, i) => assert.ok(Math.abs(p.energy - b[i].energy) < 1e-12 * Math.max(1, p.energy)));
 });
+
+/* ---------------- treatment advisor ---------------- */
+test('treatment fit: recovers exact areas of two treatments', () => {
+  const a1 = [0.2, 0.6, 0.9, 1.0, 1.0, 1.0];
+  const a2 = [0.8, 0.5, 0.2, 0.1, 0.05, 0.05];
+  const dA = a1.map((x, i) => 3 * x + 5 * a2[i]);
+  const r = AC.fitTreatmentAreas(dA, [a1, a2], [1, 1, 1, 1, 1, 1]);
+  assert.ok(Math.abs(r.areas[0] - 3) < 1e-9 && Math.abs(r.areas[1] - 5) < 1e-9 && r.residual < 1e-18);
+});
+
+test('treatment fit: never gives negative areas', () => {
+  const a1 = [0.1, 0.3, 0.8, 1, 1, 1];
+  const a2 = [0.2, 0.5, 0.9, 1, 1, 1];
+  const dA = [-2, 0, 4, 6, 6, 6];
+  const r = AC.fitTreatmentAreas(dA, [a1, a2], [1, 1, 1, 1, 1, 1]);
+  assert.ok(r.areas.every((x) => x >= 0));
+  // brute-force check on a grid: no better non-negative solution
+  let best = Infinity;
+  for (let x = 0; x <= 10; x += 0.01) for (let y = 0; y <= 10; y += 0.05) {
+    let s = 0;
+    for (let b = 0; b < 6; b++) { const e = x * a1[b] + y * a2[b] - dA[b]; s += e * e; }
+    best = Math.min(best, s);
+  }
+  assert.ok(r.residual <= best + 1e-9, `${r.residual} vs ${best}`);
+});
+
+test('treatment fit: single treatment is the weighted least-squares area', () => {
+  const al = [0.5, 1, 1];
+  const r = AC.fitTreatmentAreas([1, 2, 2], [al], [1, 1, 1]);
+  assert.ok(Math.abs(r.areas[0] - 2 * (0.5 + 2 + 2) / (0.25 + 1 + 1) / 2) < 1e-12);
+});
+
+test('diffuse integral with 2° steps agrees with 0.5° steps to 0.005', () => {
+  const a = AC.air(20);
+  const cons = { layers: [{ type: 'air', thickness: 0.05 }, { type: 'porous', thickness: 0.05, sigma: 10000 }], facing: AC.slottedFacing({ t: 0.012, w: 0.013, pitch: 0.04 }) };
+  for (const f of [100, 400, 1600, 5000]) {
+    const fine = AC.absorption(f, a, cons, { mode: 'diffuse' }).alpha;
+    const coarse = AC.absorption(f, a, cons, { mode: 'diffuse', steps: 45 }).alpha;
+    assert.ok(Math.abs(fine - coarse) < 0.005, `${f}: ${fine} vs ${coarse}`);
+  }
+});
+
+test('target RT: DIN 18041 group A formulas and ITU-R BS.1116', () => {
+  const near = (x, y) => Math.abs(x - y) < 1e-12;
+  assert.ok(near(AC.targetRT('meeting', 100).T, 0.32 * 2 - 0.17)); // A3
+  assert.ok(near(AC.targetRT('lecture', 1000).T, 0.37 * 3 - 0.14)); // A2
+  assert.ok(near(AC.targetRT('music', 100).T, 0.45 * 2 + 0.07)); // A1
+  assert.ok(near(AC.targetRT('inclusive', 100).T, 0.26 * 2 - 0.14)); // A4
+  assert.ok(near(AC.targetRT('sport', 1000).T, 0.75 * 3 - 1.0)); // A5
+  assert.ok(near(AC.targetRT('studio', 100).T, 0.25)); // BS.1116 at V = V0
+  assert.ok(near(AC.targetRT('studio', 800).T, 0.5));
+  assert.ok(AC.targetRT('meeting', 10).outOfRange);
+});
